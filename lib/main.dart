@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'pages/event_detail_page.dart';
+import 'dart:convert';
 
 void main() {
   runApp(const WariCanApp());
@@ -56,7 +57,7 @@ class EventListPage extends StatefulWidget {
 }
 
 class _EventListPageState extends State<EventListPage> {
-  List<String> events = [];
+  List<Map<String, dynamic>> events = [];
   final controller = TextEditingController();
 
   @override
@@ -67,25 +68,29 @@ class _EventListPageState extends State<EventListPage> {
 
   Future<void> _loadEvents() async {
     final prefs = await SharedPreferences.getInstance();
-    setState(() => events = prefs.getStringList('events') ?? []);
+    final list = prefs.getStringList('events') ?? [];
+    setState(() {
+      events = list.map((e) => Map<String, dynamic>.from(jsonDecode(e))).toList();
+    });
   }
 
   Future<void> _saveEvents() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('events', events);
+    await prefs.setStringList('events', events.map((e) => jsonEncode(e)).toList());
   }
 
   void _addEvent() {
     if (controller.text.isEmpty) return;
+    final newEvent = {'name': controller.text};
     setState(() {
-      events.add(controller.text);
+      events.add(newEvent);
       controller.clear();
     });
     _saveEvents();
   }
 
-  void _deleteEvent(String name) {
-    setState(() => events.remove(name));
+  void _deleteEvent(int index) {
+    setState(() => events.removeAt(index));
     _saveEvents();
   }
 
@@ -123,19 +128,19 @@ class _EventListPageState extends State<EventListPage> {
               child: ListView.builder(
                 itemCount: events.length,
                 itemBuilder: (context, i) {
-                  final name = events[i];
+                  final event = events[i];
                   return ListTile(
-                    title: Text(name),
+                    title: Text(event['name'] ?? ''),
                     trailing: IconButton(
                       icon: const Icon(Icons.delete),
-                      onPressed: () => _deleteEvent(name),
+                      onPressed: () => _deleteEvent(i),
                     ),
                     onTap: () => Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => EventDetailPage(eventName: name),
+                        builder: (_) => EventDetailPage(eventData: event),
                       ),
-                    ),
+                    ).then((_) => _loadEvents()),
                   );
                 },
               ),
