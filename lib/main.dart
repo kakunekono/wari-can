@@ -139,11 +139,8 @@ class _EventListPageState extends State<EventListPage> {
         'details': [],
       };
       setState(() => events.add(newEvent));
-
-      // SharedPreferences に保存
       await _saveEvents();
 
-      // 新規イベント作成後、即詳細ページへ遷移
       final detailResult = await Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => EventDetailPage(eventData: newEvent)),
@@ -159,15 +156,12 @@ class _EventListPageState extends State<EventListPage> {
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('イベント一覧'),
-        actions: [
-          IconButton(icon: const Icon(Icons.brightness_6), onPressed: widget.onToggleTheme)
-        ],
+        actions: [IconButton(icon: const Icon(Icons.brightness_6), onPressed: widget.onToggleTheme)],
       ),
       body: Padding(
         padding: const EdgeInsets.all(12),
@@ -190,26 +184,13 @@ class _EventListPageState extends State<EventListPage> {
                     margin: const EdgeInsets.symmetric(vertical: 4),
                     child: ListTile(
                       title: Text(e['name']),
-                      subtitle: Text(
-                        '開始: ${e['start'] ?? '-'}  終了: ${e['end'] ?? '-'}',
-                        style: const TextStyle(fontSize: 12),
-                      ),
+                      subtitle: Text('開始: ${e['start'] ?? '-'}  終了: ${e['end'] ?? '-'}', style: const TextStyle(fontSize: 12)),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          IconButton(
-                            icon: const Icon(Icons.copy, color: Colors.blue),
-                            tooltip: 'メンバーをコピーして新規作成',
-                            onPressed: () => _copyMembers(i),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.edit, color: Colors.orange),
-                            onPressed: () => _editEventName(i),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.delete, color: Colors.red),
-                            onPressed: () => _deleteEvent(i),
-                          ),
+                          IconButton(icon: const Icon(Icons.copy, color: Colors.blue), tooltip: 'メンバーをコピーして新規作成', onPressed: () => _copyMembers(i)),
+                          IconButton(icon: const Icon(Icons.edit, color: Colors.orange), onPressed: () => _editEventName(i)),
+                          IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => _deleteEvent(i)),
                         ],
                       ),
                       onTap: () async {
