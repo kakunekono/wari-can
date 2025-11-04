@@ -113,7 +113,6 @@ class _EventDetailPageState extends State<EventDetailPage> {
       }
       itemController.clear();
       amountController.clear();
-      selectedPayer = null;
       selectedParticipants.updateAll((key, value) => false);
       _updateSettlement();
       _saveData();
