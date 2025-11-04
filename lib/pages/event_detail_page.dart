@@ -349,27 +349,30 @@ class _EventDetailPageState extends State<EventDetailPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(member, style: const TextStyle(fontWeight: FontWeight.bold)),
-                ...paidDetails.map((d) => Card(
-                  margin: const EdgeInsets.symmetric(vertical: 2),
-                  child: ListTile(
-                    title: Text('${d.item} (${d.amount}円)'),
-                    subtitle: Text('参加者: ${d.participants.join(', ')}'),
-                    isThreeLine: true,
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.edit, color: Colors.orange),
-                          onPressed: () => _showDetailDialog(editingItem: d, index: details.indexOf(d)),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.red),
-                          onPressed: () => _deleteDetail(details.indexOf(d)),
-                        ),
-                      ],
+                ...paidDetails.map((d) {
+                  final showParticipants = d.participants.length != members.length;
+                    return Card(
+                    margin: const EdgeInsets.symmetric(vertical: 2),
+                    child: ListTile(
+                      title: Text('${d.item} (${d.amount}円)'),
+                      subtitle: showParticipants ? Text('参加者: ${d.participants.join(', ')}') : Text(""),
+                      isThreeLine: true,
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.edit, color: Colors.orange),
+                            onPressed: () => _showDetailDialog(editingItem: d, index: details.indexOf(d)),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            onPressed: () => _deleteDetail(details.indexOf(d)),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                )),
+                  );
+                }),
                 const Divider(),
               ],
             );
