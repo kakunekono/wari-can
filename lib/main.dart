@@ -81,7 +81,7 @@ class _EventListPageState extends State<EventListPage> {
 
   void _addEvent() {
     if (controller.text.isEmpty) return;
-    final newEvent = {'name': controller.text, 'start': null, 'end': null};
+    final newEvent = {'name': controller.text, 'start': null, 'end': null, 'members': [], 'details': []};
     setState(() {
       events.add(newEvent);
       controller.clear();
@@ -114,16 +114,59 @@ class _EventListPageState extends State<EventListPage> {
     }
   }
 
+  void _copyMembers(int index) async {
+    final existingEvent = events[index];
+    final newEventNameController = TextEditingController();
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('新規イベント名を入力'),
+        content: TextField(controller: newEventNameController, decoration: const InputDecoration(labelText: 'イベント名')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('キャンセル')),
+          TextButton(onPressed: () => Navigator.pop(context, newEventNameController.text), child: const Text('作成')),
+        ],
+      ),
+    );
+
+    if (result != null && result.trim().isNotEmpty) {
+      final newEvent = {
+        'name': result.trim(),
+        'start': null,
+        'end': null,
+        'members': List<String>.from(existingEvent['members'] ?? []),
+        'details': [],
+      };
+      setState(() => events.add(newEvent));
+
+      // SharedPreferences に保存
+      await _saveEvents();
+
+      // 新規イベント作成後、即詳細ページへ遷移
+      final detailResult = await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => EventDetailPage(eventData: newEvent)),
+      );
+
+      if (detailResult != null) {
+        setState(() {
+          newEvent['start'] = detailResult['start'];
+          newEvent['end'] = detailResult['end'];
+        });
+        _saveEvents();
+      }
+    }
+  }
+
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('イベント一覧'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.brightness_6),
-            onPressed: widget.onToggleTheme,
-          )
+          IconButton(icon: const Icon(Icons.brightness_6), onPressed: widget.onToggleTheme)
         ],
       ),
       body: Padding(
@@ -133,15 +176,9 @@ class _EventListPageState extends State<EventListPage> {
             Row(
               children: [
                 Expanded(
-                  child: TextField(
-                    controller: controller,
-                    decoration: const InputDecoration(labelText: 'イベント名を入力'),
-                  ),
+                  child: TextField(controller: controller, decoration: const InputDecoration(labelText: 'イベント名を入力')),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.add_circle),
-                  onPressed: _addEvent,
-                ),
+                IconButton(icon: const Icon(Icons.add_circle), onPressed: _addEvent),
               ],
             ),
             Expanded(
@@ -161,6 +198,11 @@ class _EventListPageState extends State<EventListPage> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           IconButton(
+                            icon: const Icon(Icons.copy, color: Colors.blue),
+                            tooltip: 'メンバーをコピーして新規作成',
+                            onPressed: () => _copyMembers(i),
+                          ),
+                          IconButton(
                             icon: const Icon(Icons.edit, color: Colors.orange),
                             onPressed: () => _editEventName(i),
                           ),
@@ -177,8 +219,8 @@ class _EventListPageState extends State<EventListPage> {
                         );
                         if (result != null) {
                           setState(() {
-                            events[i]['start'] = result['start'];
-                            events[i]['end'] = result['end'];
+                            e['start'] = result['start'];
+                            e['end'] = result['end'];
                           });
                           _saveEvents();
                         }
@@ -187,7 +229,7 @@ class _EventListPageState extends State<EventListPage> {
                   );
                 },
               ),
-            )
+            ),
           ],
         ),
       ),

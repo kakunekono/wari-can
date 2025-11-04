@@ -41,6 +41,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
   Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
     final data = prefs.getString(eventName);
+
     if (data != null) {
       final decoded = jsonDecode(data);
       setState(() {
@@ -48,10 +49,17 @@ class _EventDetailPageState extends State<EventDetailPage> {
         details = (decoded['details'] as List)
             .map((e) => ExpenseItem.fromJson(e))
             .toList();
-        for (var m in members) selectedParticipants[m] = false;
-        _updateSettlement();
+      });
+    } else {
+      // SharedPreferences にデータがない場合は eventData からコピー
+      setState(() {
+        members = List<String>.from(widget.eventData['members'] ?? []);
+        details = [];
       });
     }
+
+    for (var m in members) selectedParticipants[m] = false;
+    _updateSettlement();
   }
 
   Future<void> _saveData() async {
