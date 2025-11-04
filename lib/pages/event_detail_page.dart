@@ -28,6 +28,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
   final Map<String, bool> selectedParticipants = {};
   List<String> settlementResults = [];
   Map<String, double> paymentTotals = {};
+  Map<String, List<String>> personalDetails = {}; // 個人別明細
   int? editingIndex;
 
   @override
@@ -141,6 +142,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
   void _updateSettlement() {
     final Map<String, double> balances = {for (var m in members) m: 0.0};
     final Map<String, double> totals = {for (var m in members) m: 0.0};
+    personalDetails = {for (var m in members) m: []};
 
     for (final d in details) {
       final payer = d.payer;
@@ -150,8 +152,10 @@ class _EventDetailPageState extends State<EventDetailPage> {
 
       totals[payer] = (totals[payer] ?? 0) + amount;
       balances[payer] = (balances[payer] ?? 0) + amount;
+
       for (final p in participants) {
         balances[p] = (balances[p] ?? 0) - share;
+        personalDetails[p]!.add('${d.item} ${share.toInt()}円 (支払者: ${d.payer})');
       }
     }
 
@@ -311,24 +315,49 @@ class _EventDetailPageState extends State<EventDetailPage> {
           ),
           const Divider(),
 
-          const Text('明細一覧', style: TextStyle(fontWeight: FontWeight.bold)),
-          ...details.asMap().entries.map((entry) {
-            final i = entry.key;
-            final d = entry.value;
-            return Card(
-              margin: const EdgeInsets.symmetric(vertical: 4),
-              child: ListTile(
-                title: Text('${d.item} (${d.amount}円)'),
-                subtitle: Text('支払者: ${d.payer}\n参加者: ${d.participants.join(', ')}'),
-                isThreeLine: true,
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(icon: const Icon(Icons.edit, color: Colors.orange), onPressed: () => _editDetail(i)),
-                    IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => _deleteDetail(i)),
-                  ],
-                ),
-              ),
+          const Text('明細一覧（支払者別）', style: TextStyle(fontWeight: FontWeight.bold)),
+          ...members.map((member) {
+            // そのメンバーが支払者になっている明細を抽出
+            final paidDetails = details.where((d) => d.payer == member).toList();
+            if (paidDetails.isEmpty) return const SizedBox.shrink();
+
+            // 項目名 → 参加者名（先頭）でソート
+            paidDetails.sort((a, b) {
+              final itemCompare = a.item.compareTo(b.item);
+              if (itemCompare != 0) return itemCompare;
+
+              final aParticipant = a.participants.isNotEmpty ? a.participants.first : '';
+              final bParticipant = b.participants.isNotEmpty ? b.participants.first : '';
+              return aParticipant.compareTo(bParticipant);
+            });
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(member, style: const TextStyle(fontWeight: FontWeight.bold)),
+                ...paidDetails.map((d) => Card(
+                  margin: const EdgeInsets.symmetric(vertical: 2),
+                  child: ListTile(
+                    title: Text('${d.item} (${d.amount}円)'),
+                    subtitle: Text('参加者: ${d.participants.join(', ')}'),
+                    isThreeLine: true,
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit, color: Colors.orange),
+                          onPressed: () => _editDetail(details.indexOf(d)),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          onPressed: () => _deleteDetail(details.indexOf(d)),
+                        ),
+                      ],
+                    ),
+                  ),
+                )),
+                const Divider(),
+              ],
             );
           }).toList(),
           const Divider(),
