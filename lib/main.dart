@@ -121,26 +121,33 @@ class _EventListPageState extends State<EventListPage> {
                 IconButton(
                   icon: const Icon(Icons.add_circle),
                   onPressed: _addEvent,
-                )
+                ),
               ],
             ),
             Expanded(
               child: ListView.builder(
                 itemCount: events.length,
                 itemBuilder: (context, i) {
-                  final event = events[i];
+                  final e = events[i];
                   return ListTile(
-                    title: Text(event['name'] ?? ''),
+                    title: Text(e['name']),
                     trailing: IconButton(
                       icon: const Icon(Icons.delete),
                       onPressed: () => _deleteEvent(i),
                     ),
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => EventDetailPage(eventData: event),
-                      ),
-                    ).then((_) => _loadEvents()),
+                    onTap: () async {
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => EventDetailPage(eventData: e)),
+                      );
+                      if (result != null) {
+                        setState(() {
+                          events[i]['start'] = result['start'];
+                          events[i]['end'] = result['end'];
+                        });
+                        _saveEvents();
+                      }
+                    },
                   );
                 },
               ),

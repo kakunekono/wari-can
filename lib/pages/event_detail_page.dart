@@ -44,7 +44,9 @@ class _EventDetailPageState extends State<EventDetailPage> {
       final decoded = jsonDecode(data);
       setState(() {
         members = List<String>.from(decoded['members']);
-        details = (decoded['details'] as List).map((e) => ExpenseItem.fromJson(e)).toList();
+        details = (decoded['details'] as List)
+            .map((e) => ExpenseItem.fromJson(e))
+            .toList();
         for (var m in members) selectedParticipants[m] = false;
         _updateSettlement();
       });
@@ -60,6 +62,15 @@ class _EventDetailPageState extends State<EventDetailPage> {
       'end': endDate,
     });
     await prefs.setString(eventName, data);
+  }
+
+  Future<void> _saveAndReturn() async {
+    await _saveData();
+    Navigator.pop(context, {
+      'name': eventName,
+      'start': startDate,
+      'end': endDate,
+    });
   }
 
   void _addMember() {
@@ -186,7 +197,13 @@ class _EventDetailPageState extends State<EventDetailPage> {
     final endController = TextEditingController(text: endDate);
 
     return Scaffold(
-      appBar: AppBar(title: Text(eventName)),
+      appBar: AppBar(
+        title: Text(eventName),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: _saveAndReturn,
+        ),
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(12),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -249,11 +266,11 @@ class _EventDetailPageState extends State<EventDetailPage> {
                 .map((m) => FilterChip(
                       label: Text(m),
                       selected: selectedParticipants[m] ?? false,
-                      onSelected: (v) => setState(() => selectedParticipants[m] = v),
+                      onSelected: (val) => setState(() => selectedParticipants[m] = val),
                     ))
                 .toList(),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           ElevatedButton.icon(
             onPressed: _addOrUpdateDetail,
             icon: const Icon(Icons.add),
@@ -269,7 +286,8 @@ class _EventDetailPageState extends State<EventDetailPage> {
               margin: const EdgeInsets.symmetric(vertical: 4),
               child: ListTile(
                 title: Text('${d.item} (${d.amount}円)'),
-                subtitle: Text('支払: ${d.payer} / 参加: ${d.participants.join(', ')}'),
+                subtitle: Text('支払者: ${d.payer}\n参加者: ${d.participants.join(', ')}'),
+                isThreeLine: true,
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -279,14 +297,11 @@ class _EventDetailPageState extends State<EventDetailPage> {
                 ),
               ),
             );
-          }),
+          }).toList(),
           const Divider(),
 
-          const Text('💰 精算結果', style: TextStyle(fontWeight: FontWeight.bold)),
-          if (settlementResults.isEmpty)
-            const Text('まだ明細がありません。')
-          else
-            ...settlementResults.map((r) => ListTile(title: Text(r))),
+          const Text('精算結果', style: TextStyle(fontWeight: FontWeight.bold)),
+          ...settlementResults.map((s) => Text(s)).toList(),
         ]),
       ),
     );
