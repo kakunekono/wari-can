@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:share_plus/share_plus.dart';
 import 'dart:convert';
 import '../models/expense_item.dart';
 
@@ -41,7 +42,6 @@ class _EventDetailPageState extends State<EventDetailPage> {
   Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
     final data = prefs.getString(eventName);
-
     if (data != null) {
       final decoded = jsonDecode(data);
       setState(() {
@@ -49,17 +49,10 @@ class _EventDetailPageState extends State<EventDetailPage> {
         details = (decoded['details'] as List)
             .map((e) => ExpenseItem.fromJson(e))
             .toList();
-      });
-    } else {
-      // SharedPreferences にデータがない場合は eventData からコピー
-      setState(() {
-        members = List<String>.from(widget.eventData['members'] ?? []);
-        details = [];
+        for (var m in members) selectedParticipants[m] = false;
+        _updateSettlement();
       });
     }
-
-    for (var m in members) selectedParticipants[m] = false;
-    _updateSettlement();
   }
 
   Future<void> _saveData() async {
@@ -204,6 +197,23 @@ class _EventDetailPageState extends State<EventDetailPage> {
     }
   }
 
+  // 追加: 精算結果を共有する
+  void _shareSettlement() {
+    final buffer = StringBuffer();
+    buffer.writeln('【イベント名】$eventName');
+    buffer.writeln('開始: ${startDate ?? '-'}  終了: ${endDate ?? '-'}\n');
+
+    buffer.writeln('--- 各自の支払合計 ---');
+    paymentTotals.forEach((key, value) {
+      buffer.writeln('$key: ${value.toInt()}円');
+    });
+
+    buffer.writeln('\n--- 精算結果 ---');
+    settlementResults.forEach((s) => buffer.writeln(s));
+
+    Share.share(buffer.toString(), subject: '割り勘精算結果');
+  }
+
   @override
   Widget build(BuildContext context) {
     final startController = TextEditingController(text: startDate);
@@ -284,10 +294,20 @@ class _EventDetailPageState extends State<EventDetailPage> {
                 .toList(),
           ),
           const SizedBox(height: 8),
-          ElevatedButton.icon(
-            onPressed: _addOrUpdateDetail,
-            icon: const Icon(Icons.add),
-            label: Text(editingIndex != null ? '明細を更新' : '明細を追加'),
+          Row(
+            children: [
+              ElevatedButton.icon(
+                onPressed: _addOrUpdateDetail,
+                icon: const Icon(Icons.add),
+                label: Text(editingIndex != null ? '明細を更新' : '明細を追加'),
+              ),
+              const SizedBox(width: 12),
+              ElevatedButton.icon(
+                onPressed: _shareSettlement,
+                icon: const Icon(Icons.share),
+                label: const Text('精算結果を共有'),
+              ),
+            ],
           ),
           const Divider(),
 
