@@ -1,122 +1,524 @@
+// lib/main.dart
+// WariCan - Minimal Flutter Web 割り勘アプリ (ステップ1)
+// 実行手順:
+// 1) Flutter SDK をインストール（Flutter 3.0+ を推奨）
+// 2) 新規プロジェクト作成: `flutter create wari_can` 
+// 3) `cd wari_can` で移動し、`web` が有効なことを確認
+// 4) このファイルの内容を `lib/main.dart` に置き換える
+// 5) `flutter run -d chrome` で実行（または `flutter build web`）
+
+import 'dart:convert';
+import 'dart:html' as html; // web専用: localStorage 利用
+
 import 'package:flutter/material.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(const WariCanApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class WariCanApp extends StatelessWidget {
+  const WariCanApp({Key? key}) : super(key: key);
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-      ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      title: 'WariCan (割り勘アプリ) - Minimal',
+      theme: ThemeData(useMaterial3: true),
+      home: const EventListScreen(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
+// --- Models ---
+class Member {
+  String id;
+  String name;
+  Member({required this.id, required this.name});
 
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
-
-  @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  Map<String, dynamic> toJson() => {'id': id, 'name': name};
+  factory Member.fromJson(Map<String, dynamic> j) => Member(id: j['id'], name: j['name']);
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+class Expense {
+  String id;
+  String title;
+  String payerId;
+  double amount;
+  List<String> participantIds;
 
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
+  Expense({
+    required this.id,
+    required this.title,
+    required this.payerId,
+    required this.amount,
+    required this.participantIds,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'payerId': payerId,
+        'amount': amount,
+        'participantIds': participantIds,
+      };
+
+  factory Expense.fromJson(Map<String, dynamic> j) => Expense(
+        id: j['id'],
+        title: j['title'],
+        payerId: j['payerId'],
+        amount: (j['amount'] as num).toDouble(),
+        participantIds: List<String>.from(j['participantIds']),
+      );
+}
+
+class EventData {
+  String id;
+  String title;
+  List<Member> members;
+  List<Expense> expenses;
+
+  EventData({required this.id, required this.title, List<Member>? members, List<Expense>? expenses})
+      : members = members ?? [],
+        expenses = expenses ?? [];
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'members': members.map((m) => m.toJson()).toList(),
+        'expenses': expenses.map((e) => e.toJson()).toList(),
+      };
+
+  factory EventData.fromJson(Map<String, dynamic> j) => EventData(
+        id: j['id'],
+        title: j['title'],
+        members: (j['members'] as List).map((x) => Member.fromJson(x)).toList(),
+        expenses: (j['expenses'] as List).map((x) => Expense.fromJson(x)).toList(),
+      );
+}
+
+// --- Persistence (localStorage) ---
+class Storage {
+  static const _key = 'warican_events_v1';
+
+  static List<EventData> loadEvents() {
+    try {
+      final s = html.window.localStorage[_key];
+      if (s == null) return [];
+      final data = json.decode(s) as List;
+      return data.map((e) => EventData.fromJson(e)).toList();
+    } catch (e) {
+      debugPrint('loadEvents error: $e');
+      return [];
+    }
+  }
+
+  static void saveEvents(List<EventData> events) {
+    final s = json.encode(events.map((e) => e.toJson()).toList());
+    html.window.localStorage[_key] = s;
+  }
+}
+
+// --- Utilities ---
+String _id() => DateTime.now().microsecondsSinceEpoch.toString();
+
+Map<String, double> calculateBalances(List<EventData> events, String eventId) {
+  final balances = <String, double>{};
+  final event = events.firstWhere((e) => e.id == eventId);
+
+  for (final m in event.members) {
+    balances[m.id] = 0.0;
+  }
+
+  for (final ex in event.expenses) {
+    if (ex.participantIds.isEmpty) continue;
+    final share = ex.amount / ex.participantIds.length;
+    for (final pid in ex.participantIds) {
+      balances[pid] = (balances[pid] ?? 0) - share;
+    }
+    balances[ex.payerId] = (balances[ex.payerId] ?? 0) + ex.amount;
+  }
+
+  return balances;
+}
+
+List<Map<String, dynamic>> settleBalances(Map<String, double> balances) {
+  // 単純な貪欲アルゴリズム: 支払う側(負)と受け取る側(正)をマッチング
+  final results = <Map<String, dynamic>>[];
+
+  final debtors = balances.entries.where((e) => e.value < -0.005).map((e) => MapEntry(e.key, e.value)).toList();
+  final creditors = balances.entries.where((e) => e.value > 0.005).map((e) => MapEntry(e.key, e.value)).toList();
+
+  debtors.sort((a, b) => a.value.compareTo(b.value)); // most negative first
+  creditors.sort((a, b) => b.value.compareTo(a.value)); // most positive first
+
+  int di = 0, ci = 0;
+  while (di < debtors.length && ci < creditors.length) {
+    final d = debtors[di];
+    final c = creditors[ci];
+    final payAmount = (d.value.abs() < c.value) ? d.value.abs() : c.value;
+
+    results.add({'from': d.key, 'to': c.key, 'amount': double.parse(payAmount.toStringAsFixed(2))});
+
+    final newD = d.value + payAmount; // d.value is negative
+    final newC = c.value - payAmount;
+
+    debtors[di] = MapEntry(d.key, newD);
+    creditors[ci] = MapEntry(c.key, newC);
+
+    if (debtors[di].value.abs() < 0.005) di++;
+    if (creditors[ci].value.abs() < 0.005) ci++;
+  }
+
+  return results;
+}
+
+// --- Screens ---
+class EventListScreen extends StatefulWidget {
+  const EventListScreen({Key? key}) : super(key: key);
+
+  @override
+  State<EventListScreen> createState() => _EventListScreenState();
+}
+
+class _EventListScreenState extends State<EventListScreen> {
+  List<EventData> events = [];
+  final _controller = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    events = Storage.loadEvents();
+    if (events.isEmpty) {
+      // sample data
+      events.add(EventData(id: _id(), title: 'サンプル飲み会'));
+    }
+  }
+
+  void _save() {
+    Storage.saveEvents(events);
+    setState(() {});
+  }
+
+  void _addEvent(String title) {
+    events.add(EventData(id: _id(), title: title));
+    _controller.clear();
+    _save();
+  }
+
+  void _removeEvent(String id) {
+    events.removeWhere((e) => e.id == id);
+    _save();
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
-      appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
+      appBar: AppBar(title: const Text('WariCan - イベント一覧 (Minimal)')),
+      body: Padding(
+        padding: const EdgeInsets.all(12.0),
         child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
+          children: [
+            Row(children: [
+              Expanded(
+                child: TextField(
+                  controller: _controller,
+                  decoration: const InputDecoration(labelText: '新しいイベント名'),
+                  onSubmitted: (v) {
+                    if (v.trim().isEmpty) return;
+                    _addEvent(v.trim());
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                onPressed: () {
+                  final v = _controller.text.trim();
+                  if (v.isEmpty) return;
+                  _addEvent(v);
+                },
+                child: const Text('追加'),
+              )
+            ]),
+            const SizedBox(height: 12),
+            Expanded(
+              child: ListView.builder(
+                itemCount: events.length,
+                itemBuilder: (context, idx) {
+                  final e = events[idx];
+                  return Card(
+                    child: ListTile(
+                      title: Text(e.title),
+                      subtitle: Text('${e.members.length} 人, ${e.expenses.length} 件'),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.delete_forever),
+                        onPressed: () => showDialog(
+                          context: context,
+                          builder: (_) => AlertDialog(
+                            title: const Text('削除確認'),
+                            content: const Text('このイベントを削除しますか？'),
+                            actions: [
+                              TextButton(onPressed: () => Navigator.pop(context), child: const Text('キャンセル')),
+                              TextButton(
+                                onPressed: () {
+                                  _removeEvent(e.id);
+                                  Navigator.pop(context);
+                                },
+                                child: const Text('削除', style: TextStyle(color: Colors.red)),
+                              )
+                            ],
+                          ),
+                        ),
+                      ),
+                      onTap: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => EventDetailScreen(events: events, eventId: e.id)),
+                        );
+                        _save();
+                      },
+                    ),
+                  );
+                },
+              ),
+            )
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
+    );
+  }
+}
+
+class EventDetailScreen extends StatefulWidget {
+  final List<EventData> events;
+  final String eventId;
+  const EventDetailScreen({Key? key, required this.events, required this.eventId}) : super(key: key);
+
+  @override
+  State<EventDetailScreen> createState() => _EventDetailScreenState();
+}
+
+class _EventDetailScreenState extends State<EventDetailScreen> {
+  late EventData event;
+
+  final _memberController = TextEditingController();
+  final _expenseTitleController = TextEditingController();
+  final _expenseAmountController = TextEditingController();
+  String? _selectedPayerId;
+  final Set<String> _selectedParticipants = {};
+
+  @override
+  void initState() {
+    super.initState();
+    event = widget.events.firstWhere((e) => e.id == widget.eventId);
+  }
+
+  void _addMember(String name) {
+    if (name.trim().isEmpty) return;
+    event.members.add(Member(id: _id(), name: name.trim()));
+    _memberController.clear();
+    _save();
+  }
+
+  void _removeMember(String id) {
+    event.members.removeWhere((m) => m.id == id);
+    // remove member from expenses
+    for (final ex in event.expenses) {
+      ex.participantIds.remove(id);
+      if (ex.payerId == id) ex.payerId = event.members.isNotEmpty ? event.members.first.id : '';
+    }
+    _save();
+  }
+
+  void _addExpense() {
+    final title = _expenseTitleController.text.trim();
+    final amount = double.tryParse(_expenseAmountController.text) ?? 0.0;
+    final payer = _selectedPayerId;
+    final participants = _selectedParticipants.toList();
+
+    if (title.isEmpty || amount <= 0 || payer == null || participants.isEmpty) return;
+
+    event.expenses.add(Expense(id: _id(), title: title, payerId: payer, amount: amount, participantIds: participants));
+    _expenseTitleController.clear();
+    _expenseAmountController.clear();
+    _selectedParticipants.clear();
+    _selectedPayerId = null;
+    _save();
+  }
+
+  void _removeExpense(String id) {
+    event.expenses.removeWhere((e) => e.id == id);
+    _save();
+  }
+
+  void _save() {
+    Storage.saveEvents(widget.events);
+    setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final balances = calculateBalances(widget.events, widget.eventId);
+    final settlements = settleBalances(balances);
+
+    return Scaffold(
+      appBar: AppBar(title: Text(event.title)),
+      body: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('メンバー', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              Row(children: [
+                Expanded(
+                  child: TextField(controller: _memberController, decoration: const InputDecoration(labelText: 'メンバー名')),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton(onPressed: () => _addMember(_memberController.text), child: const Text('追加'))
+              ]),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                children: event.members
+                    .map((m) => Chip(
+                          label: Text(m.name),
+                          onDeleted: () => _removeMember(m.id),
+                        ))
+                    .toList(),
+              ),
+
+              const Divider(height: 24),
+
+              const Text('明細 (Expense)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              if (event.members.isEmpty)
+                const Text('メンバーを追加してください')
+              else
+                Column(children: [
+                  TextField(controller: _expenseTitleController, decoration: const InputDecoration(labelText: '項目名')),
+                  Row(children: [
+                    Expanded(child: TextField(controller: _expenseAmountController, decoration: const InputDecoration(labelText: '金額'))),
+                    const SizedBox(width: 8),
+                    DropdownButton<String>(
+                      hint: const Text('支払者'),
+                      value: _selectedPayerId,
+                      items: event.members.map((m) => DropdownMenuItem(value: m.id, child: Text(m.name))).toList(),
+                      onChanged: (v) => setState(() => _selectedPayerId = v),
+                    )
+                  ]),
+                  const SizedBox(height: 8),
+                  const Text('参加者'),
+                  Wrap(
+                    spacing: 8,
+                    children: event.members
+                        .map((m) => FilterChip(
+                              label: Text(m.name),
+                              selected: _selectedParticipants.contains(m.id),
+                              onSelected: (sel) => setState(() {
+                                if (sel)
+                                  _selectedParticipants.add(m.id);
+                                else
+                                  _selectedParticipants.remove(m.id);
+                              }),
+                            ))
+                        .toList(),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(children: [
+                    ElevatedButton(onPressed: _addExpense, child: const Text('明細追加')),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                        onPressed: () {
+                          // quick split: select all participants
+                          setState(() {
+                            _selectedParticipants.clear();
+                            for (final m in event.members) _selectedParticipants.add(m.id);
+                            _selectedPayerId = event.members.first.id;
+                          });
+                        },
+                        child: const Text('全員で割る'))
+                  ])
+                ]),
+
+              const SizedBox(height: 12),
+
+              if (event.expenses.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                const Text('明細一覧', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Column(
+                  children: event.expenses
+                      .map((ex) => Card(
+                            child: ListTile(
+                              title: Text('${ex.title} — ¥${ex.amount.toStringAsFixed(0)}'),
+                              subtitle: Text('支払者: ${event.members.firstWhere((m) => m.id == ex.payerId, orElse: () => Member(id: '', name: '不明')).name}  参加: ${ex.participantIds.map((pid) => event.members.firstWhere((m) => m.id == pid, orElse: () => Member(id: '', name: '??')).name).join(', ')}'),
+                              trailing: IconButton(icon: const Icon(Icons.delete), onPressed: () => _removeExpense(ex.id)),
+                            ),
+                          ))
+                      .toList(),
+                )
+              ],
+
+              const Divider(height: 24),
+
+              const Text('計算結果', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              if (event.members.isEmpty)
+                const Text('メンバーがいません')
+              else
+                Column(
+                  children: event.members.map((m) {
+                    final bal = balances[m.id] ?? 0.0;
+                    return ListTile(
+                      title: Text(m.name),
+                      trailing: Text((bal >= 0 ? '受取 ' : '支払 ') + '¥${bal.abs().toStringAsFixed(2)}'),
+                    );
+                  }).toList(),
+                ),
+
+              const SizedBox(height: 12),
+              const Text('精算提案', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              if (settlements.isEmpty)
+                const Text('未精算またはお互いに相殺されています')
+              else
+                Column(
+                  children: settlements.map((s) {
+                    final fromName = event.members.firstWhere((m) => m.id == s['from'], orElse: () => Member(id: '', name: '不明')).name;
+                    final toName = event.members.firstWhere((m) => m.id == s['to'], orElse: () => Member(id: '', name: '不明')).name;
+                    return ListTile(
+                      leading: const Icon(Icons.sync_alt),
+                      title: Text('$fromName → $toName'),
+                      trailing: Text('¥${(s['amount'] as double).toStringAsFixed(2)}'),
+                    );
+                  }).toList(),
+                ),
+
+              const SizedBox(height: 16),
+              Row(children: [
+                ElevatedButton(
+                    onPressed: () {
+                      // エクスポート: JSON を新しいタブで表示（ユーザーがコピペできる）
+                      final jsonStr = json.encode(event.toJson());
+                      final blob = html.Blob([jsonStr], 'application/json');
+                      final url = html.Url.createObjectUrlFromBlob(blob);
+                      html.window.open(url, '_blank');
+                      html.Url.revokeObjectUrl(url);
+                    },
+                    child: const Text('イベントをJSONで表示')),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                    onPressed: () {
+                      // 全データ保存
+                      Storage.saveEvents(widget.events);
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('保存しました')));
+                    },
+                    child: const Text('保存'))
+              ])
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
