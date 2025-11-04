@@ -81,7 +81,7 @@ class _EventListPageState extends State<EventListPage> {
 
   void _addEvent() {
     if (controller.text.isEmpty) return;
-    final newEvent = {'name': controller.text};
+    final newEvent = {'name': controller.text, 'start': null, 'end': null};
     setState(() {
       events.add(newEvent);
       controller.clear();
@@ -92,6 +92,26 @@ class _EventListPageState extends State<EventListPage> {
   void _deleteEvent(int index) {
     setState(() => events.removeAt(index));
     _saveEvents();
+  }
+
+  void _editEventName(int index) async {
+    final editController = TextEditingController(text: events[index]['name']);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('イベント名を編集'),
+        content: TextField(controller: editController, decoration: const InputDecoration(labelText: 'イベント名')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('キャンセル')),
+          TextButton(onPressed: () => Navigator.pop(context, editController.text), child: const Text('保存')),
+        ],
+      ),
+    );
+
+    if (result != null && result.trim().isNotEmpty) {
+      setState(() => events[index]['name'] = result.trim());
+      _saveEvents();
+    }
   }
 
   @override
@@ -129,25 +149,41 @@ class _EventListPageState extends State<EventListPage> {
                 itemCount: events.length,
                 itemBuilder: (context, i) {
                   final e = events[i];
-                  return ListTile(
-                    title: Text(e['name']),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.delete),
-                      onPressed: () => _deleteEvent(i),
+                  return Card(
+                    margin: const EdgeInsets.symmetric(vertical: 4),
+                    child: ListTile(
+                      title: Text(e['name']),
+                      subtitle: Text(
+                        '開始: ${e['start'] ?? '-'}  終了: ${e['end'] ?? '-'}',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.edit, color: Colors.orange),
+                            onPressed: () => _editEventName(i),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            onPressed: () => _deleteEvent(i),
+                          ),
+                        ],
+                      ),
+                      onTap: () async {
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => EventDetailPage(eventData: e)),
+                        );
+                        if (result != null) {
+                          setState(() {
+                            events[i]['start'] = result['start'];
+                            events[i]['end'] = result['end'];
+                          });
+                          _saveEvents();
+                        }
+                      },
                     ),
-                    onTap: () async {
-                      final result = await Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => EventDetailPage(eventData: e)),
-                      );
-                      if (result != null) {
-                        setState(() {
-                          events[i]['start'] = result['start'];
-                          events[i]['end'] = result['end'];
-                        });
-                        _saveEvents();
-                      }
-                    },
                   );
                 },
               ),

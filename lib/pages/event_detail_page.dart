@@ -26,6 +26,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
   String? selectedPayer;
   final Map<String, bool> selectedParticipants = {};
   List<String> settlementResults = [];
+  Map<String, double> paymentTotals = {};
   int? editingIndex;
 
   @override
@@ -138,6 +139,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
 
   void _updateSettlement() {
     final Map<String, double> balances = {for (var m in members) m: 0.0};
+    final Map<String, double> totals = {for (var m in members) m: 0.0};
 
     for (final d in details) {
       final payer = d.payer;
@@ -145,11 +147,14 @@ class _EventDetailPageState extends State<EventDetailPage> {
       final participants = d.participants;
       final share = amount / participants.length;
 
+      totals[payer] = (totals[payer] ?? 0) + amount;
       balances[payer] = (balances[payer] ?? 0) + amount;
       for (final p in participants) {
         balances[p] = (balances[p] ?? 0) - share;
       }
     }
+
+    paymentTotals = totals;
 
     final creditors = balances.entries.where((e) => e.value > 0).toList();
     final debtors = balances.entries.where((e) => e.value < 0).toList();
@@ -298,6 +303,10 @@ class _EventDetailPageState extends State<EventDetailPage> {
               ),
             );
           }).toList(),
+          const Divider(),
+
+          const Text('各自の支払合計', style: TextStyle(fontWeight: FontWeight.bold)),
+          ...paymentTotals.entries.map((e) => Text('${e.key} は合計 ${e.value.toInt()}円 支払')).toList(),
           const Divider(),
 
           const Text('精算結果', style: TextStyle(fontWeight: FontWeight.bold)),
