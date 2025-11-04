@@ -206,7 +206,29 @@ class _EventDetailPageState extends State<EventDetailPage> {
     buffer.writeln('【イベント名】$eventName');
     buffer.writeln('開始: ${startDate ?? '-'}  終了: ${endDate ?? '-'}\n');
 
-    buffer.writeln('--- 各自の支払合計 ---');
+    buffer.writeln('--- 明細一覧（支払者別） ---');
+    for (final member in members) {
+      // そのメンバーが支払者になっている明細を抽出
+      final paidDetails = details.where((d) => d.payer == member).toList();
+      if (paidDetails.isEmpty) continue;
+
+      // 項目名 → 参加者名（先頭）でソート
+      paidDetails.sort((a, b) {
+        final itemCompare = a.item.compareTo(b.item);
+        if (itemCompare != 0) return itemCompare;
+
+        final aParticipant = a.participants.isNotEmpty ? a.participants.first : '';
+        final bParticipant = b.participants.isNotEmpty ? b.participants.first : '';
+        return aParticipant.compareTo(bParticipant);
+      });
+
+      buffer.writeln('\n$member の支払明細:');
+      for (final d in paidDetails) {
+        buffer.writeln('  ${d.item} (${d.amount}円)  参加者: ${d.participants.join(', ')}');
+      }
+    }
+
+    buffer.writeln('\n--- 各自の支払合計 ---');
     paymentTotals.forEach((key, value) {
       buffer.writeln('$key: ${value.toInt()}円');
     });
