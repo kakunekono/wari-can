@@ -3,9 +3,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
 import 'dart:convert';
 import '../models/expense_item.dart';
-import '../widgets/expense_input_form.dart';
-import '../widgets/expense_list.dart';
-import '../widgets/settlement_summary.dart';
 
 class EventDetailPage extends StatefulWidget {
   final Map<String, dynamic> eventData;
@@ -23,16 +20,10 @@ class _EventDetailPageState extends State<EventDetailPage> {
   List<String> members = [];
   List<ExpenseItem> details = [];
 
-  final memberController = TextEditingController();
-  final itemController = TextEditingController();
-  final amountController = TextEditingController();
-
   String? selectedPayer;
-  final Map<String, bool> selectedParticipants = {};
-  List<String> settlementResults = [];
+  Map<String, List<String>> personalDetails = {}; // 個人別明細
   Map<String, double> paymentTotals = {};
-  Map<String, List<String>> personalDetails = {};
-  int? editingIndex;
+  List<String> settlementResults = [];
 
   @override
   void initState() {
@@ -50,8 +41,9 @@ class _EventDetailPageState extends State<EventDetailPage> {
       final decoded = jsonDecode(data);
       setState(() {
         members = List<String>.from(decoded['members']);
-        details = (decoded['details'] as List).map((e) => ExpenseItem.fromJson(e)).toList();
-        for (var m in members) selectedParticipants[m] = false;
+        details = (decoded['details'] as List)
+            .map((e) => ExpenseItem.fromJson(e))
+            .toList();
         _updateSettlement();
       });
     }
@@ -70,52 +62,113 @@ class _EventDetailPageState extends State<EventDetailPage> {
 
   Future<void> _saveAndReturn() async {
     await _saveData();
-    Navigator.pop(context, {'name': eventName, 'start': startDate, 'end': endDate});
+    Navigator.pop(context, {
+      'name': eventName,
+      'start': startDate,
+      'end': endDate,
+    });
   }
 
-  void _addMember() {
-    if (memberController.text.isEmpty) return;
+  void _addMember(String name) {
+    if (name.isEmpty) return;
     setState(() {
-      members.add(memberController.text);
-      selectedParticipants[memberController.text] = false;
-      memberController.clear();
+      members.add(name);
       _saveData();
     });
   }
 
-  void _addOrUpdateDetail() {
-    final item = itemController.text.trim();
-    final amount = int.tryParse(amountController.text.trim()) ?? 0;
-    if (item.isEmpty || selectedPayer == null || amount <= 0) return;
-    final participants = selectedParticipants.entries.where((e) => e.value).map((e) => e.key).toList();
-    if (participants.isEmpty) return;
-
-    final detail = ExpenseItem(item: item, payer: selectedPayer!, amount: amount, participants: participants);
-
-    setState(() {
-      if (editingIndex != null) {
-        details[editingIndex!] = detail;
-        editingIndex = null;
-      } else {
-        details.add(detail);
-      }
-      itemController.clear();
-      amountController.clear();
-      selectedParticipants.updateAll((key, value) => false);
-      _updateSettlement();
+  Future<void> _pickDate(TextEditingController controller, Function(String) onSelect) async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (picked != null) {
+      final formatted = picked.toIso8601String().substring(0, 10);
+      onSelect(formatted);
       _saveData();
-    });
+    }
   }
 
-  void _editDetail(int index) {
-    final d = details[index];
-    itemController.text = d.item;
-    amountController.text = d.amount.toString();
-    selectedPayer = d.payer;
-    selectedParticipants.updateAll((key, value) => d.participants.contains(key));
-    setState(() {
-      editingIndex = index;
-    });
+  Future<void> _showDetailDialog({ExpenseItem? editingItem, int? index}) async {
+    final itemController = TextEditingController(text: editingItem?.item ?? '');
+    final amountController = TextEditingController(text: editingItem?.amount.toString() ?? '');
+    String? payer = editingItem?.payer;
+    final Map<String, bool> participants = {for (var m in members) m: editingItem?.participants.contains(m) ?? false};
+
+    await showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(editingItem != null ? '明細を編集' : '明細を追加'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(controller: itemController, decoration: const InputDecoration(labelText: '項目名')),
+                TextField(
+                  controller: amountController,
+                  decoration: const InputDecoration(labelText: '金額'),
+                  keyboardType: TextInputType.number,
+                ),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  value: payer,
+                  decoration: const InputDecoration(labelText: '支払い者'),
+                  items: members.map((m) => DropdownMenuItem(value: m, child: Text(m))).toList(),
+                  onChanged: (val) => setDialogState(() => payer = val),
+                ),
+                const SizedBox(height: 8),
+                const Text('参加者'),
+                Column(
+                  children: members.map((m) {
+                    return CheckboxListTile(
+                      title: Text(m),
+                      value: participants[m],
+                      onChanged: (val) => setDialogState(() => participants[m] = val ?? false),
+                      controlAffinity: ListTileControlAffinity.leading,
+                      dense: true,
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('キャンセル')),
+            TextButton(
+              onPressed: () {
+                final item = itemController.text.trim();
+                final amount = int.tryParse(amountController.text.trim()) ?? 0;
+                if (item.isEmpty || payer == null || amount <= 0) return;
+                final selectedParticipants = participants.entries.where((e) => e.value).map((e) => e.key).toList();
+                if (selectedParticipants.isEmpty) return;
+
+                final detail = ExpenseItem(
+                  item: item,
+                  payer: payer!,
+                  amount: amount,
+                  participants: selectedParticipants,
+                );
+
+                setState(() {
+                  if (index != null) {
+                    details[index] = detail;
+                  } else {
+                    details.add(detail);
+                  }
+                  _updateSettlement();
+                  _saveData();
+                });
+                Navigator.pop(context);
+              },
+              child: const Text('保存'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _deleteDetail(int index) {
@@ -127,8 +180,8 @@ class _EventDetailPageState extends State<EventDetailPage> {
   }
 
   void _updateSettlement() {
-    final balances = {for (var m in members) m: 0.0};
-    final totals = {for (var m in members) m: 0.0};
+    final Map<String, double> balances = {for (var m in members) m: 0.0};
+    final Map<String, double> totals = {for (var m in members) m: 0.0};
     personalDetails = {for (var m in members) m: []};
 
     for (final d in details) {
@@ -154,7 +207,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
     creditors.sort((a, b) => b.value.compareTo(a.value));
     debtors.sort((a, b) => a.value.compareTo(b.value));
 
-    final results = <String>[];
+    final List<String> results = [];
     int ci = 0, di = 0;
 
     while (ci < creditors.length && di < debtors.length) {
@@ -174,20 +227,6 @@ class _EventDetailPageState extends State<EventDetailPage> {
     setState(() => settlementResults = results);
   }
 
-  Future<void> _pickDate(TextEditingController controller, Function(String) onSelect) async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2100),
-    );
-    if (picked != null) {
-      final formatted = picked.toIso8601String().substring(0, 10);
-      onSelect(formatted);
-      _saveData();
-    }
-  }
-
   void _shareSettlement() {
     final buffer = StringBuffer();
     buffer.writeln('【イベント名】$eventName');
@@ -201,9 +240,9 @@ class _EventDetailPageState extends State<EventDetailPage> {
       paidDetails.sort((a, b) {
         final itemCompare = a.item.compareTo(b.item);
         if (itemCompare != 0) return itemCompare;
-        final aP = a.participants.isNotEmpty ? a.participants.first : '';
-        final bP = b.participants.isNotEmpty ? b.participants.first : '';
-        return aP.compareTo(bP);
+        final aParticipant = a.participants.isNotEmpty ? a.participants.first : '';
+        final bParticipant = b.participants.isNotEmpty ? b.participants.first : '';
+        return aParticipant.compareTo(bParticipant);
       });
 
       buffer.writeln('\n$member の支払明細:');
@@ -213,7 +252,9 @@ class _EventDetailPageState extends State<EventDetailPage> {
     }
 
     buffer.writeln('\n--- 各自の支払合計 ---');
-    paymentTotals.forEach((key, value) => buffer.writeln('$key: ${value.toInt()}円'));
+    paymentTotals.forEach((key, value) {
+      buffer.writeln('$key: ${value.toInt()}円');
+    });
 
     buffer.writeln('\n--- 精算結果 ---');
     settlementResults.forEach((s) => buffer.writeln(s));
@@ -225,6 +266,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
   Widget build(BuildContext context) {
     final startController = TextEditingController(text: startDate);
     final endController = TextEditingController(text: endDate);
+    final memberController = TextEditingController();
 
     return Scaffold(
       appBar: AppBar(
@@ -257,37 +299,88 @@ class _EventDetailPageState extends State<EventDetailPage> {
             ],
           ),
           const Divider(),
+
           const Text('メンバー追加', style: TextStyle(fontWeight: FontWeight.bold)),
           Row(
             children: [
-              Expanded(child: TextField(controller: memberController, decoration: const InputDecoration(labelText: '名前'))),
-              IconButton(onPressed: _addMember, icon: const Icon(Icons.person_add)),
+              Expanded(
+                child: TextField(controller: memberController, decoration: const InputDecoration(labelText: '名前')),
+              ),
+              IconButton(onPressed: () {
+                _addMember(memberController.text.trim());
+                memberController.clear();
+              }, icon: const Icon(Icons.person_add)),
             ],
           ),
           Wrap(spacing: 8, children: members.map((m) => Chip(label: Text(m))).toList()),
           const Divider(),
-          ExpenseInputForm(
-            itemController: itemController,
-            amountController: amountController,
-            selectedPayer: selectedPayer,
-            selectedParticipants: selectedParticipants,
-            members: members,
-            onSelectPayer: (m) => setState(() => selectedPayer = m),
-            onSelectParticipant: (m, val) => setState(() => selectedParticipants[m] = val),
-            onAddOrUpdate: _addOrUpdateDetail,
-            isEditing: editingIndex != null,
-          ),
-          const SizedBox(height: 12),
-          ElevatedButton.icon(
-            onPressed: _shareSettlement,
-            icon: const Icon(Icons.share),
-            label: const Text('精算結果を共有'),
+
+          Row(
+            children: [
+              ElevatedButton.icon(
+                onPressed: () => _showDetailDialog(),
+                icon: const Icon(Icons.add),
+                label: const Text('明細を追加'),
+              ),
+              const SizedBox(width: 12),
+              ElevatedButton.icon(
+                onPressed: _shareSettlement,
+                icon: const Icon(Icons.share),
+                label: const Text('精算結果を共有'),
+              ),
+            ],
           ),
           const Divider(),
+
           const Text('明細一覧（支払者別）', style: TextStyle(fontWeight: FontWeight.bold)),
-          ExpenseList(members: members, details: details, onEdit: _editDetail, onDelete: _deleteDetail),
+          ...members.map((member) {
+            final paidDetails = details.where((d) => d.payer == member).toList();
+            if (paidDetails.isEmpty) return const SizedBox.shrink();
+
+            paidDetails.sort((a, b) {
+              final itemCompare = a.item.compareTo(b.item);
+              if (itemCompare != 0) return itemCompare;
+              final aParticipant = a.participants.isNotEmpty ? a.participants.first : '';
+              final bParticipant = b.participants.isNotEmpty ? b.participants.first : '';
+              return aParticipant.compareTo(bParticipant);
+            });
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(member, style: const TextStyle(fontWeight: FontWeight.bold)),
+                ...paidDetails.map((d) => Card(
+                  margin: const EdgeInsets.symmetric(vertical: 2),
+                  child: ListTile(
+                    title: Text('${d.item} (${d.amount}円)'),
+                    subtitle: Text('参加者: ${d.participants.join(', ')}'),
+                    isThreeLine: true,
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit, color: Colors.orange),
+                          onPressed: () => _showDetailDialog(editingItem: d, index: details.indexOf(d)),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          onPressed: () => _deleteDetail(details.indexOf(d)),
+                        ),
+                      ],
+                    ),
+                  ),
+                )),
+                const Divider(),
+              ],
+            );
+          }).toList(),
+
+          const Text('各自の支払合計', style: TextStyle(fontWeight: FontWeight.bold)),
+          ...paymentTotals.entries.map((e) => Text('${e.key} は合計 ${e.value.toInt()}円 支払')).toList(),
           const Divider(),
-          SettlementSummary(paymentTotals: paymentTotals, settlementResults: settlementResults),
+
+          const Text('精算結果', style: TextStyle(fontWeight: FontWeight.bold)),
+          ...settlementResults.map((s) => Text(s)).toList(),
         ]),
       ),
     );
