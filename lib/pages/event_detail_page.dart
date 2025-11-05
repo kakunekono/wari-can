@@ -247,7 +247,9 @@ class _EventDetailPageState extends State<EventDetailPage> {
 
       buffer.writeln('\n$member の支払明細:');
       for (final d in paidDetails) {
-        buffer.writeln('  ${d.item} (${d.amount}円)  参加者: ${d.participants.join(', ')}');
+        final showParticipants = d.participants.length != members.length;
+        buffer.writeln('  ${d.item} (${d.amount}円)'
+            '${showParticipants ? ' 参加者: ${d.participants.join(', ')}' : ''}');
       }
     }
 
@@ -351,7 +353,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
                 Text(member, style: const TextStyle(fontWeight: FontWeight.bold)),
                 ...paidDetails.map((d) {
                   final showParticipants = d.participants.length != members.length;
-                    return Card(
+                  return Card(
                     margin: const EdgeInsets.symmetric(vertical: 2),
                     child: ListTile(
                       title: Text('${d.item} (${d.amount}円)'),
@@ -370,7 +372,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
                           ),
                         ],
                       ),
-                    ),
+                    )
                   );
                 }),
                 const Divider(),
