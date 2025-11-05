@@ -1,3 +1,4 @@
+// lib/pages/event_detail_page.dart
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
@@ -5,14 +6,23 @@ import 'dart:convert';
 import '../models/expense_item.dart';
 
 class EventDetailPage extends StatefulWidget {
-  final Map<String, dynamic> eventData;
+  /// 期待する eventData の構造:
+  /// {
+  ///   'id': 'uuid',    // できれば必須
+  ///   'name': 'イベント名',
+  ///   'start': 'YYYY-MM-DD' or null,
+  ///   'end': 'YYYY-MM-DD' or null,
+  ///   'members': [...],
+  /// }
   const EventDetailPage({super.key, required this.eventData});
+  final Map<String, dynamic> eventData;
 
   @override
   State<EventDetailPage> createState() => _EventDetailPageState();
 }
 
 class _EventDetailPageState extends State<EventDetailPage> {
+  late String eventId;
   late String eventName;
   String? startDate;
   String? endDate;
@@ -28,41 +38,80 @@ class _EventDetailPageState extends State<EventDetailPage> {
   @override
   void initState() {
     super.initState();
+    // eventData に 'id' がある前提（main側で付与済み）
+    // もしない場合は eventName をキーにフォールバック（互換性確保）
+    eventId = widget.eventData['id']?.toString() ?? widget.eventData['name'] ?? '';
     eventName = widget.eventData['name'] ?? '';
     startDate = widget.eventData['start'];
     endDate = widget.eventData['end'];
-    _loadData();
+
+    _loadEventMetaAndExpenses();
   }
 
-  Future<void> _loadData() async {
+  String _eventMetaKey() => 'event_$eventId';
+  String _eventExpensesKey() => 'expenses_$eventId';
+
+  Future<void> _loadEventMetaAndExpenses() async {
     final prefs = await SharedPreferences.getInstance();
-    final data = prefs.getString(eventName);
-    if (data != null) {
-      final decoded = jsonDecode(data);
+
+    // イベントメタ (members, start, end, name) をロード（存在すれば上書き）
+    final metaString = prefs.getString(_eventMetaKey());
+    if (metaString != null) {
+      try {
+        final decoded = jsonDecode(metaString);
+        setState(() {
+          eventName = decoded['name'] ?? eventName;
+          startDate = decoded['start'];
+          endDate = decoded['end'];
+          members = List<String>.from(decoded['members'] ?? []);
+        });
+      } catch (_) {
+        // parse error は無視して既存の値を使う
+      }
+    } else {
+      // フォールバック: widget.eventData に members があれば使う
       setState(() {
-        members = List<String>.from(decoded['members']);
-        details = (decoded['details'] as List)
-            .map((e) => ExpenseItem.fromJson(e))
-            .toList();
-        _updateSettlement();
+        members = List<String>.from(widget.eventData['members'] ?? []);
       });
     }
+
+    // 明細 (expenses_<id>) をロード
+    final expenseList = prefs.getStringList(_eventExpensesKey()) ?? [];
+    setState(() {
+      details = expenseList.map((e) {
+        final decoded = jsonDecode(e) as Map<String, dynamic>;
+        return ExpenseItem.fromJson(decoded);
+      }).toList();
+    });
+
+    _updateSettlement();
   }
 
-  Future<void> _saveData() async {
+  Future<void> _saveEventMeta() async {
     final prefs = await SharedPreferences.getInstance();
-    final data = jsonEncode({
-      'members': members,
-      'details': details.map((e) => e.toJson()).toList(),
+    final meta = jsonEncode({
+      'id': eventId,
+      'name': eventName,
       'start': startDate,
       'end': endDate,
+      'members': members,
     });
-    await prefs.setString(eventName, data);
+    await prefs.setString(_eventMetaKey(), meta);
   }
 
-  Future<void> _saveAndReturn() async {
-    await _saveData();
+  Future<void> _saveExpenses() async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = details.map((e) => jsonEncode(e.toJson())).toList();
+    await prefs.setStringList(_eventExpensesKey(), list);
+  }
+
+  Future<void> _saveAllAndReturn() async {
+    await _saveEventMeta();
+    await _saveExpenses();
+
+    // 戻り値はイベント名と日付情報（必要なら id も返せます）
     Navigator.pop(context, {
+      'id': eventId,
       'name': eventName,
       'start': startDate,
       'end': endDate,
@@ -73,8 +122,8 @@ class _EventDetailPageState extends State<EventDetailPage> {
     if (name.isEmpty) return;
     setState(() {
       members.add(name);
-      _saveData();
     });
+    _saveEventMeta();
   }
 
   Future<void> _pickDate(TextEditingController controller, Function(String) onSelect) async {
@@ -87,7 +136,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
     if (picked != null) {
       final formatted = picked.toIso8601String().substring(0, 10);
       onSelect(formatted);
-      _saveData();
+      _saveEventMeta();
     }
   }
 
@@ -138,7 +187,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
           actions: [
             TextButton(onPressed: () => Navigator.pop(context), child: const Text('キャンセル')),
             TextButton(
-              onPressed: () {
+              onPressed: () async {
                 final item = itemController.text.trim();
                 final amount = int.tryParse(amountController.text.trim()) ?? 0;
                 if (item.isEmpty || payer == null || amount <= 0) return;
@@ -159,8 +208,9 @@ class _EventDetailPageState extends State<EventDetailPage> {
                     details.add(detail);
                   }
                   _updateSettlement();
-                  _saveData();
                 });
+
+                await _saveExpenses();
                 Navigator.pop(context);
               },
               child: const Text('保存'),
@@ -171,15 +221,16 @@ class _EventDetailPageState extends State<EventDetailPage> {
     );
   }
 
-  void _deleteDetail(int index) {
+  void _deleteDetail(int index) async {
     setState(() {
       details.removeAt(index);
       _updateSettlement();
-      _saveData();
     });
+    await _saveExpenses();
   }
 
   void _updateSettlement() {
+    // balances: 各人がプラス（貸し）かマイナス（借り）
     final Map<String, double> balances = {for (var m in members) m: 0.0};
     final Map<String, double> totals = {for (var m in members) m: 0.0};
     personalDetails = {for (var m in members) m: []};
@@ -188,6 +239,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
       final payer = d.payer;
       final amount = d.amount.toDouble();
       final participants = d.participants;
+      if (participants.isEmpty) continue;
       final share = amount / participants.length;
 
       totals[payer] = (totals[payer] ?? 0) + amount;
@@ -273,7 +325,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(eventName),
-        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: _saveAndReturn),
+        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: _saveAllAndReturn),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(12),

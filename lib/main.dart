@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'pages/event_detail_page.dart';
 import 'dart:convert';
+import 'package:uuid/uuid.dart';
 
 void main() {
   runApp(const WariCanApp());
@@ -59,6 +60,7 @@ class EventListPage extends StatefulWidget {
 class _EventListPageState extends State<EventListPage> {
   List<Map<String, dynamic>> events = [];
   final controller = TextEditingController();
+  final _uuid = const Uuid();
 
   @override
   void initState() {
@@ -69,8 +71,23 @@ class _EventListPageState extends State<EventListPage> {
   Future<void> _loadEvents() async {
     final prefs = await SharedPreferences.getInstance();
     final list = prefs.getStringList('events') ?? [];
+    final loaded = list.map((e) => Map<String, dynamic>.from(jsonDecode(e))).toList();
+
+    // IDがない古いイベントにUUIDを補完
+    bool needsSave = false;
+    for (var e in loaded) {
+      if (e['id'] == null || (e['id'] as String).isEmpty) {
+        e['id'] = _uuid.v4();
+        needsSave = true;
+      }
+    }
+
+    if (needsSave) {
+      await prefs.setStringList('events', loaded.map((e) => jsonEncode(e)).toList());
+    }
+
     setState(() {
-      events = list.map((e) => Map<String, dynamic>.from(jsonDecode(e))).toList();
+      events = loaded;
     });
   }
 
@@ -81,7 +98,14 @@ class _EventListPageState extends State<EventListPage> {
 
   void _addEvent() {
     if (controller.text.isEmpty) return;
-    final newEvent = {'name': controller.text, 'start': null, 'end': null, 'members': [], 'details': []};
+    final newEvent = {
+      'id': _uuid.v4(),
+      'name': controller.text,
+      'start': null,
+      'end': null,
+      'members': [],
+      'details': []
+    };
     setState(() {
       events.add(newEvent);
       controller.clear();
@@ -132,6 +156,7 @@ class _EventListPageState extends State<EventListPage> {
 
     if (result != null && result.trim().isNotEmpty) {
       final newEvent = {
+        'id': _uuid.v4(),
         'name': result.trim(),
         'start': null,
         'end': null,
@@ -184,7 +209,10 @@ class _EventListPageState extends State<EventListPage> {
                     margin: const EdgeInsets.symmetric(vertical: 4),
                     child: ListTile(
                       title: Text(e['name']),
-                      subtitle: Text('開始: ${e['start'] ?? '-'}  終了: ${e['end'] ?? '-'}', style: const TextStyle(fontSize: 12)),
+                      subtitle: Text(
+                        'ID: ${e['id']}\n開始: ${e['start'] ?? '-'}  終了: ${e['end'] ?? '-'}',
+                        style: const TextStyle(fontSize: 12),
+                      ),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
