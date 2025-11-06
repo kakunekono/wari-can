@@ -12,16 +12,16 @@ class ExpenseItem {
   });
 
   factory ExpenseItem.fromJson(Map<String, dynamic> json) => ExpenseItem(
-        item: json['item'],
-        payer: json['payer'],
-        amount: json['amount'],
-        participants: List<String>.from(json['participants']),
-      );
+    item: json['item'],
+    payer: json['payer'],
+    amount: json['amount'],
+    participants: List<String>.from(json['participants']),
+  );
 
   Map<String, dynamic> toJson() => {
-        'item': item,
-        'payer': payer,
-        'amount': amount,
-        'participants': participants,
-      };
+    'item': item,
+    'payer': payer,
+    'amount': amount,
+    'participants': participants,
+  };
 }

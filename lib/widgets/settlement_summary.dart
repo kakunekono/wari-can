@@ -16,7 +16,9 @@ class SettlementSummary extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text('各自の支払合計', style: TextStyle(fontWeight: FontWeight.bold)),
-        ...paymentTotals.entries.map((e) => Text('${e.key} は合計 ${e.value.toInt()}円 支払')),
+        ...paymentTotals.entries.map(
+          (e) => Text('${e.key} は合計 ${e.value.toInt()}円 支払'),
+        ),
         const Divider(),
         const Text('精算結果', style: TextStyle(fontWeight: FontWeight.bold)),
         ...settlementResults.map((s) => Text(s)),

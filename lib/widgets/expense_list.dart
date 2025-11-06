@@ -35,21 +35,29 @@ class ExpenseList extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(member, style: const TextStyle(fontWeight: FontWeight.bold)),
-            ...paidDetails.map((d) => Card(
-                  margin: const EdgeInsets.symmetric(vertical: 2),
-                  child: ListTile(
-                    title: Text('${d.item} (${d.amount}円)'),
-                    subtitle: Text('参加者: ${d.participants.join(', ')}'),
-                    isThreeLine: true,
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(icon: const Icon(Icons.edit, color: Colors.orange), onPressed: () => onEdit(details.indexOf(d))),
-                        IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => onDelete(details.indexOf(d))),
-                      ],
-                    ),
+            ...paidDetails.map(
+              (d) => Card(
+                margin: const EdgeInsets.symmetric(vertical: 2),
+                child: ListTile(
+                  title: Text('${d.item} (${d.amount}円)'),
+                  subtitle: Text('参加者: ${d.participants.join(', ')}'),
+                  isThreeLine: true,
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.edit, color: Colors.orange),
+                        onPressed: () => onEdit(details.indexOf(d)),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red),
+                        onPressed: () => onDelete(details.indexOf(d)),
+                      ),
+                    ],
                   ),
-                )),
+                ),
+              ),
+            ),
             const Divider(),
           ],
         );

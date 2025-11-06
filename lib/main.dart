@@ -41,8 +41,16 @@ class _WariCanAppState extends State<WariCanApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: '割り勘アプリ',
-      theme: ThemeData(useMaterial3: true, brightness: Brightness.light, colorSchemeSeed: Colors.teal),
-      darkTheme: ThemeData(useMaterial3: true, brightness: Brightness.dark, colorSchemeSeed: Colors.teal),
+      theme: ThemeData(
+        useMaterial3: true,
+        brightness: Brightness.light,
+        colorSchemeSeed: Colors.teal,
+      ),
+      darkTheme: ThemeData(
+        useMaterial3: true,
+        brightness: Brightness.dark,
+        colorSchemeSeed: Colors.teal,
+      ),
       themeMode: _themeMode,
       home: EventListPage(onToggleTheme: _toggleTheme),
     );
@@ -71,7 +79,9 @@ class _EventListPageState extends State<EventListPage> {
   Future<void> _loadEvents() async {
     final prefs = await SharedPreferences.getInstance();
     final list = prefs.getStringList('events') ?? [];
-    final loaded = list.map((e) => Map<String, dynamic>.from(jsonDecode(e))).toList();
+    final loaded = list
+        .map((e) => Map<String, dynamic>.from(jsonDecode(e)))
+        .toList();
 
     // IDがない古いイベントにUUIDを補完
     bool needsSave = false;
@@ -83,7 +93,10 @@ class _EventListPageState extends State<EventListPage> {
     }
 
     if (needsSave) {
-      await prefs.setStringList('events', loaded.map((e) => jsonEncode(e)).toList());
+      await prefs.setStringList(
+        'events',
+        loaded.map((e) => jsonEncode(e)).toList(),
+      );
     }
 
     setState(() {
@@ -93,7 +106,10 @@ class _EventListPageState extends State<EventListPage> {
 
   Future<void> _saveEvents() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('events', events.map((e) => jsonEncode(e)).toList());
+    await prefs.setStringList(
+      'events',
+      events.map((e) => jsonEncode(e)).toList(),
+    );
   }
 
   void _addEvent() {
@@ -104,7 +120,7 @@ class _EventListPageState extends State<EventListPage> {
       'start': null,
       'end': null,
       'members': [],
-      'details': []
+      'details': [],
     };
     setState(() {
       events.add(newEvent);
@@ -124,10 +140,19 @@ class _EventListPageState extends State<EventListPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('イベント名を編集'),
-        content: TextField(controller: editController, decoration: const InputDecoration(labelText: 'イベント名')),
+        content: TextField(
+          controller: editController,
+          decoration: const InputDecoration(labelText: 'イベント名'),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('キャンセル')),
-          TextButton(onPressed: () => Navigator.pop(context, editController.text), child: const Text('保存')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('キャンセル'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, editController.text),
+            child: const Text('保存'),
+          ),
         ],
       ),
     );
@@ -146,10 +171,20 @@ class _EventListPageState extends State<EventListPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('新規イベント名を入力'),
-        content: TextField(controller: newEventNameController, decoration: const InputDecoration(labelText: 'イベント名')),
+        content: TextField(
+          controller: newEventNameController,
+          decoration: const InputDecoration(labelText: 'イベント名'),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('キャンセル')),
-          TextButton(onPressed: () => Navigator.pop(context, newEventNameController.text), child: const Text('作成')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('キャンセル'),
+          ),
+          TextButton(
+            onPressed: () =>
+                Navigator.pop(context, newEventNameController.text),
+            child: const Text('作成'),
+          ),
         ],
       ),
     );
@@ -186,7 +221,12 @@ class _EventListPageState extends State<EventListPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('イベント一覧'),
-        actions: [IconButton(icon: const Icon(Icons.brightness_6), onPressed: widget.onToggleTheme)],
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.brightness_6),
+            onPressed: widget.onToggleTheme,
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(12),
@@ -195,9 +235,15 @@ class _EventListPageState extends State<EventListPage> {
             Row(
               children: [
                 Expanded(
-                  child: TextField(controller: controller, decoration: const InputDecoration(labelText: 'イベント名を入力')),
+                  child: TextField(
+                    controller: controller,
+                    decoration: const InputDecoration(labelText: 'イベント名を入力'),
+                  ),
                 ),
-                IconButton(icon: const Icon(Icons.add_circle), onPressed: _addEvent),
+                IconButton(
+                  icon: const Icon(Icons.add_circle),
+                  onPressed: _addEvent,
+                ),
               ],
             ),
             Expanded(
@@ -216,15 +262,27 @@ class _EventListPageState extends State<EventListPage> {
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          IconButton(icon: const Icon(Icons.copy, color: Colors.blue), tooltip: 'メンバーをコピーして新規作成', onPressed: () => _copyMembers(i)),
-                          IconButton(icon: const Icon(Icons.edit, color: Colors.orange), onPressed: () => _editEventName(i)),
-                          IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => _deleteEvent(i)),
+                          IconButton(
+                            icon: const Icon(Icons.copy, color: Colors.blue),
+                            tooltip: 'メンバーをコピーして新規作成',
+                            onPressed: () => _copyMembers(i),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.edit, color: Colors.orange),
+                            onPressed: () => _editEventName(i),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            onPressed: () => _deleteEvent(i),
+                          ),
                         ],
                       ),
                       onTap: () async {
                         final result = await Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (_) => EventDetailPage(eventData: e)),
+                          MaterialPageRoute(
+                            builder: (_) => EventDetailPage(eventData: e),
+                          ),
                         );
                         if (result != null) {
                           setState(() {

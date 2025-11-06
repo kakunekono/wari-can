@@ -40,7 +40,8 @@ class _EventDetailPageState extends State<EventDetailPage> {
     super.initState();
     // eventData に 'id' がある前提（main側で付与済み）
     // もしない場合は eventName をキーにフォールバック（互換性確保）
-    eventId = widget.eventData['id']?.toString() ?? widget.eventData['name'] ?? '';
+    eventId =
+        widget.eventData['id']?.toString() ?? widget.eventData['name'] ?? '';
     eventName = widget.eventData['name'] ?? '';
     startDate = widget.eventData['start'];
     endDate = widget.eventData['end'];
@@ -126,7 +127,10 @@ class _EventDetailPageState extends State<EventDetailPage> {
     _saveEventMeta();
   }
 
-  Future<void> _pickDate(TextEditingController controller, Function(String) onSelect) async {
+  Future<void> _pickDate(
+    TextEditingController controller,
+    Function(String) onSelect,
+  ) async {
     final picked = await showDatePicker(
       context: context,
       initialDate: DateTime.now(),
@@ -142,9 +146,13 @@ class _EventDetailPageState extends State<EventDetailPage> {
 
   Future<void> _showDetailDialog({ExpenseItem? editingItem, int? index}) async {
     final itemController = TextEditingController(text: editingItem?.item ?? '');
-    final amountController = TextEditingController(text: editingItem?.amount.toString() ?? '');
+    final amountController = TextEditingController(
+      text: editingItem?.amount.toString() ?? '',
+    );
     String? payer = editingItem?.payer;
-    final Map<String, bool> participants = {for (var m in members) m: editingItem?.participants.contains(m) ?? false};
+    final Map<String, bool> participants = {
+      for (var m in members) m: editingItem?.participants.contains(m) ?? false,
+    };
 
     await showDialog(
       context: context,
@@ -155,7 +163,10 @@ class _EventDetailPageState extends State<EventDetailPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(controller: itemController, decoration: const InputDecoration(labelText: '項目名')),
+                TextField(
+                  controller: itemController,
+                  decoration: const InputDecoration(labelText: '項目名'),
+                ),
                 TextField(
                   controller: amountController,
                   decoration: const InputDecoration(labelText: '金額'),
@@ -165,7 +176,9 @@ class _EventDetailPageState extends State<EventDetailPage> {
                 DropdownButtonFormField<String>(
                   value: payer,
                   decoration: const InputDecoration(labelText: '支払い者'),
-                  items: members.map((m) => DropdownMenuItem(value: m, child: Text(m))).toList(),
+                  items: members
+                      .map((m) => DropdownMenuItem(value: m, child: Text(m)))
+                      .toList(),
                   onChanged: (val) => setDialogState(() => payer = val),
                 ),
                 const SizedBox(height: 8),
@@ -175,7 +188,8 @@ class _EventDetailPageState extends State<EventDetailPage> {
                     return CheckboxListTile(
                       title: Text(m),
                       value: participants[m],
-                      onChanged: (val) => setDialogState(() => participants[m] = val ?? false),
+                      onChanged: (val) =>
+                          setDialogState(() => participants[m] = val ?? false),
                       controlAffinity: ListTileControlAffinity.leading,
                       dense: true,
                     );
@@ -185,13 +199,19 @@ class _EventDetailPageState extends State<EventDetailPage> {
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('キャンセル')),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('キャンセル'),
+            ),
             TextButton(
               onPressed: () async {
                 final item = itemController.text.trim();
                 final amount = int.tryParse(amountController.text.trim()) ?? 0;
                 if (item.isEmpty || payer == null || amount <= 0) return;
-                final selectedParticipants = participants.entries.where((e) => e.value).map((e) => e.key).toList();
+                final selectedParticipants = participants.entries
+                    .where((e) => e.value)
+                    .map((e) => e.key)
+                    .toList();
                 if (selectedParticipants.isEmpty) return;
 
                 final detail = ExpenseItem(
@@ -247,7 +267,9 @@ class _EventDetailPageState extends State<EventDetailPage> {
 
       for (final p in participants) {
         balances[p] = (balances[p] ?? 0) - share;
-        personalDetails[p]!.add('${d.item} ${share.toInt()}円 (支払者: ${d.payer})');
+        personalDetails[p]!.add(
+          '${d.item} ${share.toInt()}円 (支払者: ${d.payer})',
+        );
       }
     }
 
@@ -292,16 +314,22 @@ class _EventDetailPageState extends State<EventDetailPage> {
       paidDetails.sort((a, b) {
         final itemCompare = a.item.compareTo(b.item);
         if (itemCompare != 0) return itemCompare;
-        final aParticipant = a.participants.isNotEmpty ? a.participants.first : '';
-        final bParticipant = b.participants.isNotEmpty ? b.participants.first : '';
+        final aParticipant = a.participants.isNotEmpty
+            ? a.participants.first
+            : '';
+        final bParticipant = b.participants.isNotEmpty
+            ? b.participants.first
+            : '';
         return aParticipant.compareTo(bParticipant);
       });
 
       buffer.writeln('\n$member の支払明細:');
       for (final d in paidDetails) {
         final showParticipants = d.participants.length != members.length;
-        buffer.writeln('  ${d.item} (${d.amount}円)'
-            '${showParticipants ? ' 参加者: ${d.participants.join(', ')}' : ''}');
+        buffer.writeln(
+          '  ${d.item} (${d.amount}円)'
+          '${showParticipants ? ' 参加者: ${d.participants.join(', ')}' : ''}',
+        );
       }
     }
 
@@ -325,120 +353,168 @@ class _EventDetailPageState extends State<EventDetailPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(eventName),
-        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: _saveAllAndReturn),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: _saveAllAndReturn,
+        ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(12),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('イベント情報', style: TextStyle(fontWeight: FontWeight.bold)),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: startController,
-                  decoration: const InputDecoration(labelText: '開始日 (任意)'),
-                  readOnly: true,
-                  onTap: () => _pickDate(startController, (val) => setState(() => startDate = val)),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: TextField(
-                  controller: endController,
-                  decoration: const InputDecoration(labelText: '終了日 (任意)'),
-                  readOnly: true,
-                  onTap: () => _pickDate(endController, (val) => setState(() => endDate = val)),
-                ),
-              ),
-            ],
-          ),
-          const Divider(),
-
-          const Text('メンバー追加', style: TextStyle(fontWeight: FontWeight.bold)),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(controller: memberController, decoration: const InputDecoration(labelText: '名前')),
-              ),
-              IconButton(onPressed: () {
-                _addMember(memberController.text.trim());
-                memberController.clear();
-              }, icon: const Icon(Icons.person_add)),
-            ],
-          ),
-          Wrap(spacing: 8, children: members.map((m) => Chip(label: Text(m))).toList()),
-          const Divider(),
-
-          Row(
-            children: [
-              ElevatedButton.icon(
-                onPressed: () => _showDetailDialog(),
-                icon: const Icon(Icons.add),
-                label: const Text('明細を追加'),
-              ),
-              const SizedBox(width: 12),
-              ElevatedButton.icon(
-                onPressed: _shareSettlement,
-                icon: const Icon(Icons.share),
-                label: const Text('精算結果を共有'),
-              ),
-            ],
-          ),
-          const Divider(),
-
-          const Text('明細一覧（支払者別）', style: TextStyle(fontWeight: FontWeight.bold)),
-          ...members.map((member) {
-            final paidDetails = details.where((d) => d.payer == member).toList();
-            if (paidDetails.isEmpty) return const SizedBox.shrink();
-
-            paidDetails.sort((a, b) {
-              final itemCompare = a.item.compareTo(b.item);
-              if (itemCompare != 0) return itemCompare;
-              final aParticipant = a.participants.isNotEmpty ? a.participants.first : '';
-              final bParticipant = b.participants.isNotEmpty ? b.participants.first : '';
-              return aParticipant.compareTo(bParticipant);
-            });
-
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('イベント情報', style: TextStyle(fontWeight: FontWeight.bold)),
+            Row(
               children: [
-                Text(member, style: const TextStyle(fontWeight: FontWeight.bold)),
-                ...paidDetails.map((d) {
-                  final showParticipants = d.participants.length != members.length;
-                  return Card(
-                    margin: const EdgeInsets.symmetric(vertical: 2),
-                    child: ListTile(
-                      title: Text('${d.item} (${d.amount}円)'),
-                      subtitle: showParticipants ? Text('参加者: ${d.participants.join(', ')}') : Text(""),
-                      isThreeLine: true,
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.edit, color: Colors.orange),
-                            onPressed: () => _showDetailDialog(editingItem: d, index: details.indexOf(d)),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.delete, color: Colors.red),
-                            onPressed: () => _deleteDetail(details.indexOf(d)),
-                          ),
-                        ],
-                      ),
-                    )
-                  );
-                }),
-                const Divider(),
+                Expanded(
+                  child: TextField(
+                    controller: startController,
+                    decoration: const InputDecoration(labelText: '開始日 (任意)'),
+                    readOnly: true,
+                    onTap: () => _pickDate(
+                      startController,
+                      (val) => setState(() => startDate = val),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextField(
+                    controller: endController,
+                    decoration: const InputDecoration(labelText: '終了日 (任意)'),
+                    readOnly: true,
+                    onTap: () => _pickDate(
+                      endController,
+                      (val) => setState(() => endDate = val),
+                    ),
+                  ),
+                ),
               ],
-            );
-          }).toList(),
+            ),
+            const Divider(),
 
-          const Text('各自の支払合計', style: TextStyle(fontWeight: FontWeight.bold)),
-          ...paymentTotals.entries.map((e) => Text('${e.key} は合計 ${e.value.toInt()}円 支払')).toList(),
-          const Divider(),
+            const Text('メンバー追加', style: TextStyle(fontWeight: FontWeight.bold)),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: memberController,
+                    decoration: const InputDecoration(labelText: '名前'),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () {
+                    _addMember(memberController.text.trim());
+                    memberController.clear();
+                  },
+                  icon: const Icon(Icons.person_add),
+                ),
+              ],
+            ),
+            Wrap(
+              spacing: 8,
+              children: members.map((m) => Chip(label: Text(m))).toList(),
+            ),
+            const Divider(),
 
-          const Text('精算結果', style: TextStyle(fontWeight: FontWeight.bold)),
-          ...settlementResults.map((s) => Text(s)).toList(),
-        ]),
+            Row(
+              children: [
+                ElevatedButton.icon(
+                  onPressed: () => _showDetailDialog(),
+                  icon: const Icon(Icons.add),
+                  label: const Text('明細を追加'),
+                ),
+                const SizedBox(width: 12),
+                ElevatedButton.icon(
+                  onPressed: _shareSettlement,
+                  icon: const Icon(Icons.share),
+                  label: const Text('精算結果を共有'),
+                ),
+              ],
+            ),
+            const Divider(),
+
+            const Text(
+              '明細一覧（支払者別）',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            ...members.map((member) {
+              final paidDetails = details
+                  .where((d) => d.payer == member)
+                  .toList();
+              if (paidDetails.isEmpty) return const SizedBox.shrink();
+
+              paidDetails.sort((a, b) {
+                final itemCompare = a.item.compareTo(b.item);
+                if (itemCompare != 0) return itemCompare;
+                final aParticipant = a.participants.isNotEmpty
+                    ? a.participants.first
+                    : '';
+                final bParticipant = b.participants.isNotEmpty
+                    ? b.participants.first
+                    : '';
+                return aParticipant.compareTo(bParticipant);
+              });
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    member,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  ...paidDetails.map((d) {
+                    final showParticipants =
+                        d.participants.length != members.length;
+                    return Card(
+                      margin: const EdgeInsets.symmetric(vertical: 2),
+                      child: ListTile(
+                        title: Text('${d.item} (${d.amount}円)'),
+                        subtitle: showParticipants
+                            ? Text('参加者: ${d.participants.join(', ')}')
+                            : Text(""),
+                        isThreeLine: true,
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(
+                                Icons.edit,
+                                color: Colors.orange,
+                              ),
+                              onPressed: () => _showDetailDialog(
+                                editingItem: d,
+                                index: details.indexOf(d),
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              onPressed: () =>
+                                  _deleteDetail(details.indexOf(d)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                  const Divider(),
+                ],
+              );
+            }).toList(),
+
+            const Text(
+              '各自の支払合計',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            ...paymentTotals.entries
+                .map((e) => Text('${e.key} は合計 ${e.value.toInt()}円 支払'))
+                .toList(),
+            const Divider(),
+
+            const Text('精算結果', style: TextStyle(fontWeight: FontWeight.bold)),
+            ...settlementResults.map((s) => Text(s)).toList(),
+          ],
+        ),
       ),
     );
   }

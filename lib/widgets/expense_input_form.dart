@@ -30,18 +30,27 @@ class ExpenseInputForm extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text('明細入力', style: TextStyle(fontWeight: FontWeight.bold)),
-        TextField(controller: itemController, decoration: const InputDecoration(labelText: '項目名')),
-        TextField(controller: amountController, decoration: const InputDecoration(labelText: '金額'), keyboardType: TextInputType.number),
+        TextField(
+          controller: itemController,
+          decoration: const InputDecoration(labelText: '項目名'),
+        ),
+        TextField(
+          controller: amountController,
+          decoration: const InputDecoration(labelText: '金額'),
+          keyboardType: TextInputType.number,
+        ),
         const SizedBox(height: 8),
         const Text('支払者を選択'),
         Wrap(
           spacing: 8,
           children: members
-              .map((m) => ChoiceChip(
-                    label: Text(m),
-                    selected: selectedPayer == m,
-                    onSelected: (_) => onSelectPayer(m),
-                  ))
+              .map(
+                (m) => ChoiceChip(
+                  label: Text(m),
+                  selected: selectedPayer == m,
+                  onSelected: (_) => onSelectPayer(m),
+                ),
+              )
               .toList(),
         ),
         const SizedBox(height: 8),
@@ -49,11 +58,13 @@ class ExpenseInputForm extends StatelessWidget {
         Wrap(
           spacing: 8,
           children: members
-              .map((m) => FilterChip(
-                    label: Text(m),
-                    selected: selectedParticipants[m] ?? false,
-                    onSelected: (val) => onSelectParticipant(m, val),
-                  ))
+              .map(
+                (m) => FilterChip(
+                  label: Text(m),
+                  selected: selectedParticipants[m] ?? false,
+                  onSelected: (val) => onSelectParticipant(m, val),
+                ),
+              )
               .toList(),
         ),
         const SizedBox(height: 8),
