@@ -174,7 +174,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
                 ),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
-                  value: payer,
+                  initialValue: payer,
                   decoration: const InputDecoration(labelText: '支払い者'),
                   items: members
                       .map((m) => DropdownMenuItem(value: m, child: Text(m)))
@@ -339,7 +339,9 @@ class _EventDetailPageState extends State<EventDetailPage> {
     });
 
     buffer.writeln('\n--- 精算結果 ---');
-    settlementResults.forEach((s) => buffer.writeln(s));
+    for (var s in settlementResults) {
+      buffer.writeln(s);
+    }
 
     Share.share(buffer.toString(), subject: '割り勘精算結果');
   }
@@ -413,7 +415,106 @@ class _EventDetailPageState extends State<EventDetailPage> {
             ),
             Wrap(
               spacing: 8,
-              children: members.map((m) => Chip(label: Text(m))).toList(),
+              runSpacing: 8,
+              children: members.map((m) {
+                return Container(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).chipTheme.backgroundColor,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(m, style: Theme.of(context).textTheme.bodyMedium),
+                      const SizedBox(width: 4),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.edit,
+                          size: 18,
+                          color: Colors.orange,
+                        ),
+                        constraints: const BoxConstraints(),
+                        tooltip: "編集",
+                        onPressed: () async {
+                          final controller = TextEditingController(text: m);
+                          final result = await showDialog<String>(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: const Text('メンバー名を編集'),
+                              content: TextField(
+                                controller: controller,
+                                decoration: const InputDecoration(
+                                  labelText: '名前',
+                                ),
+                                autofocus: true,
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: const Text('キャンセル'),
+                                ),
+                                TextButton(
+                                  onPressed: () => Navigator.pop(
+                                    context,
+                                    controller.text.trim(),
+                                  ),
+                                  child: const Text('OK'),
+                                ),
+                              ],
+                            ),
+                          );
+
+                          if (result != null &&
+                              result.isNotEmpty &&
+                              result != m) {
+                            setState(() {
+                              final index = members.indexOf(m);
+                              members[index] = result;
+                            });
+                          }
+                        },
+                      ),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.delete,
+                          size: 18,
+                          color: Colors.red,
+                        ),
+                        constraints: const BoxConstraints(),
+                        tooltip: "削除",
+                        onPressed: () async {
+                          final confirm = await showDialog<bool>(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: const Text('削除の確認'),
+                              content: Text('「$m」を削除しますか？'),
+                              actions: [
+                                TextButton(
+                                  onPressed: () =>
+                                      Navigator.pop(context, false),
+                                  child: const Text('キャンセル'),
+                                ),
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context, true),
+                                  child: const Text('削除'),
+                                ),
+                              ],
+                            ),
+                          );
+
+                          if (confirm == true) {
+                            setState(() => members.remove(m));
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
             ),
             const Divider(),
 
@@ -500,19 +601,19 @@ class _EventDetailPageState extends State<EventDetailPage> {
                   const Divider(),
                 ],
               );
-            }).toList(),
+            }),
 
             const Text(
               '各自の支払合計',
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
-            ...paymentTotals.entries
-                .map((e) => Text('${e.key} は合計 ${e.value.toInt()}円 支払'))
-                .toList(),
+            ...paymentTotals.entries.map(
+              (e) => Text('${e.key} は合計 ${e.value.toInt()}円 支払'),
+            ),
             const Divider(),
 
             const Text('精算結果', style: TextStyle(fontWeight: FontWeight.bold)),
-            ...settlementResults.map((s) => Text(s)).toList(),
+            ...settlementResults.map((s) => Text(s)),
           ],
         ),
       ),
