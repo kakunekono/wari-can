@@ -16,13 +16,11 @@ class EventDetailPage extends StatefulWidget {
 
 class _EventDetailPageState extends State<EventDetailPage> {
   late Event _event;
-
   final TextEditingController _memberController = TextEditingController();
   final TextEditingController _itemController = TextEditingController();
   final TextEditingController _amountController = TextEditingController();
-
   String? _selectedPayer;
-  final Set<String> _selectedParticipants = {};
+  List<String> _selectedParticipants = [];
 
   @override
   void initState() {
@@ -34,7 +32,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
   Future<void> _saveEvent() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('event_${_event.id}', jsonEncode(_event.toJson()));
-    setState(() {}); // ← 再描画（集計更新のため）
+    setState(() {}); // 更新反映
   }
 
   /// メンバー追加
@@ -52,8 +50,8 @@ class _EventDetailPageState extends State<EventDetailPage> {
     setState(() {
       _event.members.add(name);
     });
-    await _saveEvent();
     _memberController.clear();
+    await _saveEvent();
   }
 
   /// メンバー削除
@@ -61,8 +59,8 @@ class _EventDetailPageState extends State<EventDetailPage> {
     setState(() {
       _event.members.remove(name);
       _event.details.removeWhere(
-        (e) => e.payer == name || e.participants.contains(name),
-      );
+        (d) => d.payer == name || d.participants.contains(name),
+      ); // 関連明細も削除
     });
     await _saveEvent();
   }
@@ -105,54 +103,52 @@ class _EventDetailPageState extends State<EventDetailPage> {
 
       setState(() {
         final index = _event.members.indexOf(oldName);
-        if (index != -1) {
-          _event.members[index] = newName;
-        }
-        // 明細にも反映
-        for (var e in _event.details) {
-          if (e.payer == oldName) e.payer = newName;
-          e.participants = e.participants
-              .map((p) => p == oldName ? newName : p)
-              .toList();
+        if (index != -1) _event.members[index] = newName;
+        // 明細内のpayerやparticipantsも更新
+        for (final d in _event.details) {
+          if (d.payer == oldName) d.payer = newName;
+          for (int i = 0; i < d.participants.length; i++) {
+            if (d.participants[i] == oldName) d.participants[i] = newName;
+          }
         }
       });
       await _saveEvent();
     }
   }
 
-  /// 支出追加
+  /// 支出明細追加
   Future<void> _addExpense() async {
     final item = _itemController.text.trim();
     final amount = int.tryParse(_amountController.text.trim()) ?? 0;
-    if (item.isEmpty || _selectedPayer == null || amount <= 0) return;
-
-    if (_selectedParticipants.isEmpty) {
+    if (item.isEmpty ||
+        _selectedPayer == null ||
+        _selectedParticipants.isEmpty ||
+        amount <= 0) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('少なくとも1人の参加者を選択してください')));
+      ).showSnackBar(const SnackBar(content: Text('全ての項目を正しく入力してください')));
       return;
     }
 
-    setState(() {
-      _event.details.add(
-        Expense(
-          item: item,
-          payer: _selectedPayer!,
-          amount: amount,
-          participants: _selectedParticipants.toList(),
-        ),
-      );
-    });
+    final expense = Expense(
+      item: item,
+      payer: _selectedPayer!,
+      amount: amount,
+      participants: List<String>.from(_selectedParticipants),
+    );
 
-    _itemController.clear();
-    _amountController.clear();
-    _selectedParticipants.clear();
-    _selectedPayer = null;
+    setState(() {
+      _event.details.add(expense);
+      _itemController.clear();
+      _amountController.clear();
+      _selectedPayer = null;
+      _selectedParticipants = [];
+    });
 
     await _saveEvent();
   }
 
-  /// 支出削除
+  /// 支出明細削除
   Future<void> _deleteExpense(int index) async {
     setState(() {
       _event.details.removeAt(index);
@@ -160,54 +156,59 @@ class _EventDetailPageState extends State<EventDetailPage> {
     await _saveEvent();
   }
 
-  /// メンバーごとの支出合計
-  Map<String, int> _calcTotals() {
-    final totals = <String, int>{for (var m in _event.members) m: 0};
-    for (var e in _event.details) {
+  /// メンバーごとの精算計算
+  Map<String, Map<String, int>> calcSettlement() {
+    final totals = <String, int>{};
+    final owes = <String, int>{};
+
+    for (final m in _event.members) {
+      totals[m] = 0;
+      owes[m] = 0;
+    }
+
+    for (final e in _event.details) {
       totals[e.payer] = (totals[e.payer] ?? 0) + e.amount;
-    }
-    return totals;
-  }
-
-  /// 精算計算
-  List<String> _calcSettlement() {
-    final totals = _calcTotals();
-    if (_event.members.isEmpty) return [];
-
-    final totalAmount = totals.values.fold<int>(0, (a, b) => a + b);
-    final avg = totalAmount / _event.members.length;
-
-    final creditors = <String, double>{};
-    final debtors = <String, double>{};
-    for (var e in totals.entries) {
-      final diff = e.value - avg;
-      if (diff > 0) creditors[e.key] = diff;
-      if (diff < 0) debtors[e.key] = -diff;
-    }
-
-    final results = <String>[];
-    final cList = creditors.entries.toList();
-    final dList = debtors.entries.toList();
-
-    for (var c in cList) {
-      double cValue = c.value;
-      for (var d in dList) {
-        if (cValue <= 0) break;
-        if (d.value <= 0) continue;
-
-        final pay = cValue < d.value ? cValue : d.value;
-        results.add('${d.key} → ${c.key} に ${pay.round()}円支払い');
-        cValue -= pay;
-        dList[dList.indexOf(d)] = MapEntry(d.key, d.value - pay);
+      final perPerson = (e.amount / e.participants.length).round();
+      for (final p in e.participants) {
+        owes[p] = (owes[p] ?? 0) + perPerson;
       }
     }
-    return results;
+
+    final balances = <String, int>{};
+    for (final m in _event.members) {
+      balances[m] = (totals[m] ?? 0) - (owes[m] ?? 0);
+    }
+
+    // receivers, payers をコピーして Map 上で操作
+    final receiverBalances = <String, int>{};
+    balances.forEach((k, v) {
+      if (v > 0) receiverBalances[k] = v;
+    });
+    final payers = balances.entries.where((e) => e.value < 0).toList();
+
+    final settlement = <String, Map<String, int>>{};
+
+    for (final p in payers) {
+      var remaining = -p.value;
+      for (final rKey in receiverBalances.keys) {
+        if (receiverBalances[rKey]! <= 0) continue;
+        final payAmount = remaining <= receiverBalances[rKey]!
+            ? remaining
+            : receiverBalances[rKey]!;
+        settlement[p.key] ??= {};
+        settlement[p.key]![rKey] = payAmount;
+        receiverBalances[rKey] = receiverBalances[rKey]! - payAmount;
+        remaining -= payAmount;
+        if (remaining <= 0) break;
+      }
+    }
+
+    return settlement;
   }
 
   @override
   Widget build(BuildContext context) {
-    final totals = _calcTotals();
-    final settlements = _calcSettlement();
+    final settlement = calcSettlement();
 
     return Scaffold(
       appBar: AppBar(title: Text(_event.name)),
@@ -216,13 +217,15 @@ class _EventDetailPageState extends State<EventDetailPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // === 基本情報 ===
+            // 基本情報
             Text('イベントID: ${_event.id}'),
+            const SizedBox(height: 8),
             Text('メンバー数: ${_event.members.length}人'),
+            const SizedBox(height: 8),
             Text('支出件数: ${_event.details.length}件'),
             const Divider(height: 32),
 
-            // === メンバー追加 ===
+            // メンバー追加欄
             Row(
               children: [
                 Expanded(
@@ -244,19 +247,27 @@ class _EventDetailPageState extends State<EventDetailPage> {
             ),
             const SizedBox(height: 16),
 
-            // === メンバー一覧 ===
+            // メンバー一覧
             const Text(
-              '👥 メンバー一覧',
+              'メンバー一覧',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             _event.members.isEmpty
-                ? const Text('メンバーはまだ登録されていません')
-                : Column(
-                    children: _event.members.map((m) {
+                ? const Padding(
+                    padding: EdgeInsets.all(8.0),
+                    child: Text('メンバーはまだ登録されていません'),
+                  )
+                : ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _event.members.length,
+                    itemBuilder: (context, index) {
+                      final member = _event.members[index];
                       return Card(
+                        margin: const EdgeInsets.symmetric(vertical: 4),
                         child: ListTile(
-                          title: Text(m),
+                          title: Text(member),
                           trailing: Wrap(
                             spacing: 8,
                             children: [
@@ -266,7 +277,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
                                   color: Colors.orange,
                                 ),
                                 tooltip: '編集',
-                                onPressed: () => _editMemberName(m),
+                                onPressed: () => _editMemberName(member),
                               ),
                               IconButton(
                                 icon: const Icon(
@@ -274,20 +285,20 @@ class _EventDetailPageState extends State<EventDetailPage> {
                                   color: Colors.red,
                                 ),
                                 tooltip: '削除',
-                                onPressed: () => _deleteMember(m),
+                                onPressed: () => _deleteMember(member),
                               ),
                             ],
                           ),
                         ),
                       );
-                    }).toList(),
+                    },
                   ),
+            const SizedBox(height: 24),
+            const Divider(),
 
-            const Divider(height: 32),
-
-            // === 支出追加フォーム ===
+            // 支出明細追加
             const Text(
-              '💸 支出を追加',
+              '支出明細追加',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
@@ -299,18 +310,6 @@ class _EventDetailPageState extends State<EventDetailPage> {
               ),
             ),
             const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              value: _selectedPayer,
-              decoration: const InputDecoration(
-                labelText: '支払者',
-                border: OutlineInputBorder(),
-              ),
-              items: _event.members
-                  .map((m) => DropdownMenuItem(value: m, child: Text(m)))
-                  .toList(),
-              onChanged: (v) => setState(() => _selectedPayer = v),
-            ),
-            const SizedBox(height: 8),
             TextField(
               controller: _amountController,
               decoration: const InputDecoration(
@@ -320,80 +319,102 @@ class _EventDetailPageState extends State<EventDetailPage> {
               keyboardType: TextInputType.number,
             ),
             const SizedBox(height: 8),
+            DropdownButton<String>(
+              value: _selectedPayer,
+              hint: const Text('支払者を選択'),
+              isExpanded: true,
+              items: _event.members
+                  .map((m) => DropdownMenuItem(value: m, child: Text(m)))
+                  .toList(),
+              onChanged: (v) => setState(() => _selectedPayer = v),
+            ),
+            const SizedBox(height: 8),
             Wrap(
               spacing: 8,
-              children: _event.members.map((m) {
-                final selected = _selectedParticipants.contains(m);
-                return FilterChip(
-                  label: Text(m),
-                  selected: selected,
-                  onSelected: (v) {
-                    setState(() {
-                      v
-                          ? _selectedParticipants.add(m)
-                          : _selectedParticipants.remove(m);
-                    });
-                  },
-                );
-              }).toList(),
+              children: _event.members
+                  .map(
+                    (m) => FilterChip(
+                      label: Text(m),
+                      selected: _selectedParticipants.contains(m),
+                      onSelected: (selected) {
+                        setState(() {
+                          if (selected) {
+                            _selectedParticipants.add(m);
+                          } else {
+                            _selectedParticipants.remove(m);
+                          }
+                        });
+                      },
+                    ),
+                  )
+                  .toList(),
             ),
             const SizedBox(height: 8),
             ElevatedButton.icon(
-              onPressed: _addExpense,
               icon: const Icon(Icons.add),
-              label: const Text('支出を追加'),
+              label: const Text('支出明細を追加'),
+              onPressed: _addExpense,
             ),
+            const SizedBox(height: 16),
 
-            const Divider(height: 32),
-
-            // === 支出一覧 ===
+            // 支出明細一覧
             const Text(
-              '📋 支出明細',
+              '支出明細一覧',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
+            const SizedBox(height: 8),
             _event.details.isEmpty
-                ? const Text('支出はまだ登録されていません')
-                : Column(
-                    children: List.generate(_event.details.length, (i) {
-                      final e = _event.details[i];
+                ? const Text('まだ支出明細はありません')
+                : ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _event.details.length,
+                    itemBuilder: (context, index) {
+                      final e = _event.details[index];
                       return Card(
+                        margin: const EdgeInsets.symmetric(vertical: 4),
                         child: ListTile(
                           title: Text('${e.item} (${e.amount}円)'),
                           subtitle: Text(
-                            '支払者: ${e.payer}\n参加者: ${e.participants.join(", ")}',
+                            '支払者: ${e.payer}\n参加者: ${e.participants.join(', ')}',
                           ),
                           trailing: IconButton(
                             icon: const Icon(Icons.delete, color: Colors.red),
                             tooltip: '削除',
-                            onPressed: () => _deleteExpense(i),
+                            onPressed: () => _deleteExpense(index),
                           ),
                         ),
                       );
-                    }),
+                    },
                   ),
-
-            const Divider(height: 32),
-
-            // === 支出合計 ===
-            const Text(
-              '💰 メンバーごとの支出合計',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            ...totals.entries.map((e) => Text('${e.key}: ${e.value}円')),
-
-            const Divider(height: 32),
-
-            // === 精算結果 ===
-            const Text(
-              '⚖️ 精算結果',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            settlements.isEmpty
-                ? const Text('精算は不要です')
-                : Column(children: settlements.map((s) => Text(s)).toList()),
-
             const SizedBox(height: 24),
             const Divider(),
+
+            // 精算結果
+            const Text(
+              '精算結果',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            settlement.isEmpty
+                ? const Text('精算不要')
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: settlement.entries
+                        .map(
+                          (e) => Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: e.value.entries
+                                .map(
+                                  (r) =>
+                                      Text('${e.key} → ${r.key}: ${r.value}円'),
+                                )
+                                .toList(),
+                          ),
+                        )
+                        .toList(),
+                  ),
+            const SizedBox(height: 24),
             Center(
               child: ElevatedButton.icon(
                 icon: const Icon(Icons.arrow_back),
