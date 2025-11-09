@@ -47,12 +47,14 @@ class Event {
 }
 
 class Expense {
+  final String id;
   String item;
   String payer;
   int amount;
   List<String> participants;
 
   Expense({
+    required this.id,
     required this.item,
     required this.payer,
     required this.amount,
@@ -60,6 +62,7 @@ class Expense {
   });
 
   Map<String, dynamic> toJson() => {
+    'id': id,
     'item': item,
     'payer': payer,
     'amount': amount,
@@ -67,6 +70,7 @@ class Expense {
   };
 
   static Expense fromJson(Map<String, dynamic> json) => Expense(
+    id: json['id'],
     item: json['item'],
     payer: json['payer'],
     amount: json['amount'],
