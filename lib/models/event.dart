@@ -89,7 +89,6 @@ class Expense {
     'payer': payer,
     'amount': amount,
     'participants': participants,
-    // 以下を追加
     'shares': shares.isNotEmpty ? shares : null,
     'mode': mode != "manual" ? mode : null,
     'payDate': payDate,
