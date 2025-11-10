@@ -125,7 +125,9 @@ class _EventDetailPageState extends State<EventDetailPage> {
 
   Future<void> _editMemberName(String memberId) async {
     final member = _event.members.firstWhere((m) => m.id == memberId);
-    final controller = TextEditingController(text: member.name);
+    final oldName = member.name; // ← 元の名前を保持
+    final controller = TextEditingController(text: oldName);
+
     final newName = await showDialog<String>(
       context: context,
       builder: (_) => AlertDialog(
@@ -144,14 +146,17 @@ class _EventDetailPageState extends State<EventDetailPage> {
       ),
     );
 
-    if (newName != null && newName.isNotEmpty && newName != member.name) {
+    if (newName != null && newName.isNotEmpty && newName != oldName) {
       setState(() {
-        member.name = newName;
+        // まず支払い明細の旧名前を置き換える
         for (final e in _event.details) {
-          if (e.payer == member.name) e.payer = newName;
-          final j = e.participants.indexOf(member.name);
+          if (e.payer == oldName) e.payer = newName;
+          final j = e.participants.indexOf(oldName);
           if (j != -1) e.participants[j] = newName;
         }
+
+        // その後、メンバー名を更新
+        member.name = newName;
       });
       await _saveEvent();
     }
@@ -670,6 +675,7 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
                 for (final m in widget.members)
                   m: int.tryParse(_controllers[m]!.text) ?? 0,
               },
+              "mode": _mode,
             };
             Navigator.pop(context, result);
           },
