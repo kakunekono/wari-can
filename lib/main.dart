@@ -181,6 +181,11 @@ class _EventListPageState extends State<EventListPage> {
             ),
             onPressed: widget.onToggleTheme,
           ),
+          IconButton(
+            icon: const Icon(Icons.delete_forever),
+            tooltip: 'すべて削除',
+            onPressed: _confirmDeleteAll,
+          ),
         ],
       ),
       body: Column(
@@ -248,5 +253,34 @@ class _EventListPageState extends State<EventListPage> {
         ],
       ),
     );
+  }
+
+  Future<void> _confirmDeleteAll() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('確認'),
+        content: const Text('本当にすべてのイベントとデータを削除しますか？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('キャンセル'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('はい'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
+      setState(() => _events.clear());
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('すべてのデータを削除しました')));
+    }
   }
 }
