@@ -70,7 +70,7 @@ class Expense {
   List<String> participants;
   Map<String, int> shares; // 各メンバー負担額
   String mode; // "equal" | "manual"
-  DateTime? payDate;
+  String? payDate;
 
   Expense({
     required this.id,

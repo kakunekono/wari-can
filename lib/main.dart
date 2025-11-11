@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import 'package:wari_can/models/event.dart';
 import 'package:wari_can/pages/event_detail_page.dart';
+import '../utils/event_json_utils.dart';
 
 void main() {
   runApp(const WariCanApp());
@@ -104,6 +105,26 @@ class _EventListPageState extends State<EventListPage> {
   }
 
   Future<void> _deleteEvent(int index) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('確認'),
+        content: const Text('本当にこのイベントを削除しますか？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('キャンセル'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('はい'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return; // 「はい」以外は処理中止
+
     final prefs = await SharedPreferences.getInstance();
     final event = _events[index];
     await prefs.remove('event_${event.id}');
@@ -182,6 +203,10 @@ class _EventListPageState extends State<EventListPage> {
             onPressed: widget.onToggleTheme,
           ),
           IconButton(
+            icon: const Icon(Icons.upload_file),
+            onPressed: () => EventJsonUtils.importEventJson(context),
+          ), // ← 追加
+          IconButton(
             icon: const Icon(Icons.delete_forever),
             tooltip: 'すべて削除',
             onPressed: _confirmDeleteAll,
@@ -222,11 +247,23 @@ class _EventListPageState extends State<EventListPage> {
                         ),
                         child: ListTile(
                           title: Text(e.name),
-                          subtitle: Text('メンバー: ${e.members.length}人'),
+                          subtitle: Text(
+                            [
+                              'イベントID： ${e.id}',
+                              'メンバー: ${e.members.length}人',
+                            ].join("\n"),
+                          ),
                           onTap: () => _openEventDetail(e),
                           trailing: Wrap(
                             spacing: 8,
                             children: [
+                              // 既存 ListTile の trailing Wrap 内に追加
+                              IconButton(
+                                icon: const Icon(Icons.code),
+                                tooltip: 'JSON出力',
+                                onPressed: () =>
+                                    EventJsonUtils.exportEventJson(context, e),
+                              ),
                               IconButton(
                                 icon: const Icon(
                                   Icons.edit,
