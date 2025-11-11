@@ -5,11 +5,11 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../models/event.dart';
+import 'package:share_plus/share_plus.dart';
 
 class EventJsonUtils {
   static final _uuid = Uuid();
 
-  // JSON出力（変更なし）
   static Future<void> exportEventJson(BuildContext context, Event event) async {
     final jsonStr = jsonEncode(event.toJson());
     await showDialog(
@@ -31,6 +31,12 @@ class EventJsonUtils {
               ).showSnackBar(const SnackBar(content: Text("JSONをコピーしました")));
             },
             child: const Text("コピー"),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Share.share(jsonStr, subject: "イベントJSON");
+            },
+            child: const Text("共有"),
           ),
         ],
       ),
