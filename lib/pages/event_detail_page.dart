@@ -5,6 +5,17 @@ import 'package:uuid/uuid.dart';
 import 'package:share_plus/share_plus.dart';
 import '../models/event.dart';
 import '../utils/event_json_utils.dart';
+import 'package:intl/intl.dart';
+
+String formatAmount(num value) {
+  if (value % 1 == 0) {
+    // 整数なら小数なしで表示
+    return NumberFormat('#,###').format(value);
+  } else {
+    // 小数がある場合のみ小数2桁表示
+    return NumberFormat('#,###.00').format(value);
+  }
+}
 
 class EventDetailPage extends StatefulWidget {
   final Event event;
@@ -68,6 +79,27 @@ class _EventDetailPageState extends State<EventDetailPage> {
     final paidTotals = _calcPaidTotals();
     final settlements = _calcSettlement();
 
+    // メンバーごとの負担合計を計算
+    final memberShareTotals = <String, int>{};
+    for (final e in _event.details) {
+      if (e.mode == "manual" && e.shares.isNotEmpty) {
+        e.shares.forEach((memberId, amount) {
+          memberShareTotals[memberId] =
+              (memberShareTotals[memberId] ?? 0) + amount;
+        });
+      } else if (e.participants.isNotEmpty) {
+        final per = e.amount ~/ e.participants.length;
+        final remainder = e.amount - (per * e.participants.length);
+        int i = 0;
+        for (final pid in e.participants) {
+          int share = per;
+          if (i == 0) share += remainder; // 端数は支払者負担
+          memberShareTotals[pid] = (memberShareTotals[pid] ?? 0) + share;
+          i++;
+        }
+      }
+    }
+
     final buffer = StringBuffer();
     buffer.writeln("📅 イベント名: ${_event.name}");
     buffer.writeln("");
@@ -106,24 +138,49 @@ class _EventDetailPageState extends State<EventDetailPage> {
       // 参加者が全員なら省略
       final allMembers = _event.members.map((m) => m.id).toSet();
       final participants = e.participants.toSet();
-      final participantsText = participants.length == allMembers.length
-          ? ""
-          : "：参加者: ${e.participants.map(_memberName).join(', ')}";
+      final showParticipants = participants.length < allMembers.length;
 
-      buffer.writeln("・${e.item}（${e.amount}円）$participantsText");
+      // 明細本体
+      buffer.writeln("・${e.item}（${formatAmount(e.amount)}円）");
+
+      // 負担額を出力（shares がある場合のみ）
+      if (e.shares.isNotEmpty) {
+        if (showParticipants) {
+          buffer.writeln("  負担額:");
+          e.shares.forEach((memberId, amount) {
+            if (amount > 0) {
+              buffer.writeln(
+                "    ${_memberName(memberId)} -> ${formatAmount(amount)}円",
+              );
+            }
+          });
+        } else {
+          buffer.writeln(
+            "  負担額:${formatAmount(e.amount / allMembers.length)}円",
+          );
+        }
+      }
     }
 
     buffer.writeln("");
     buffer.writeln("💵 メンバーごとの支払合計（単純集計）:");
     for (final e in paidTotals.entries) {
-      buffer.writeln("・${_memberName(e.key)}: ${e.value}円");
+      buffer.writeln("・${_memberName(e.key)}: ${formatAmount(e.value)}円");
     }
+
+    buffer.writeln("");
+    buffer.writeln("💳 メンバーごとの負担合計:");
+    for (final e in memberShareTotals.entries) {
+      buffer.writeln("・${_memberName(e.key)}: ${formatAmount(e.value)}円");
+    }
+
     buffer.writeln("");
     buffer.writeln("💴 メンバーごとの支払合計（精算後残高）:");
     for (final e in totals.entries) {
       final sign = e.value >= 0 ? '+' : '';
-      buffer.writeln("・${_memberName(e.key)}: $sign${e.value}円");
+      buffer.writeln("・${_memberName(e.key)}: $sign${formatAmount(e.value)}円");
     }
+
     buffer.writeln("");
     buffer.writeln("📊 精算結果:");
     for (final s in settlements) {
@@ -312,8 +369,13 @@ class _EventDetailPageState extends State<EventDetailPage> {
       } else {
         if (e.participants.isEmpty) continue;
         final per = e.amount ~/ e.participants.length;
+        final remainder = e.amount % e.participants.length; // 端数は支払者が負担
         for (final pid in e.participants) {
-          owes[pid] = (owes[pid] ?? 0) + per;
+          if (pid == e.payer) {
+            owes[pid] = (owes[pid] ?? 0) + per + remainder;
+          } else {
+            owes[pid] = (owes[pid] ?? 0) + per;
+          }
         }
       }
     }
@@ -323,6 +385,17 @@ class _EventDetailPageState extends State<EventDetailPage> {
       balances[m.id] = (totals[m.id] ?? 0) - (owes[m.id] ?? 0);
     }
     return balances;
+  }
+
+  Map<String, int> _memberShareTotals() {
+    final totals = <String, int>{};
+    // 各メンバーの負担額合計を計算
+    for (final e in _event.details) {
+      e.shares.forEach((memberId, amount) {
+        totals[memberId] = (totals[memberId] ?? 0) + amount;
+      });
+    }
+    return totals;
   }
 
   // ----------------------
@@ -348,7 +421,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
         final pay = amount < recvAmount ? amount : recvAmount;
         if (pay > 0) {
           result.add(
-            "${_memberName(payer['id'] as String)} → ${_memberName(receiver['id'] as String)} に $pay円",
+            "${_memberName(payer['id'] as String)} → ${_memberName(receiver['id'] as String)} に ${formatAmount(pay)}円",
           );
           amount -= pay;
           receiver['amount'] = recvAmount - pay;
@@ -368,6 +441,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
     final settlements = _calcSettlement();
     final balances = _calcTotals();
     final paidTotals = _calcPaidTotals();
+    final memberShareTotals = _memberShareTotals();
 
     // 支払者順にソート
     final sortedDetails = List<Expense>.from(_event.details);
@@ -486,15 +560,33 @@ class _EventDetailPageState extends State<EventDetailPage> {
               widgets.add(
                 Card(
                   child: ListTile(
-                    title: Text(e.item),
+                    title: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(e.item),
+                        const SizedBox(width: 4),
+                        Icon(
+                          e.mode == "manual" ? Icons.tune : Icons.balance,
+                          size: 18,
+                          color: Colors.grey,
+                        ),
+                      ],
+                    ),
                     subtitle: Text(
                       [
                         "支払者: ${_memberName(e.payer)}",
                         if (e.payDate != null && e.payDate!.isNotEmpty)
-                          "支払日: ${e.payDate}", // 支払日がある場合のみ表示
-                        "金額: ${e.amount}円",
-                        if (showParticipants)
-                          "参加者: ${e.participants.map(_memberName).join(', ')}",
+                          "支払日: ${e.payDate}",
+                        "支払金額: ${formatAmount(e.amount)}円",
+                        "負担金額:",
+                        if (showParticipants) ...[
+                          for (final m in e.shares.entries) ...[
+                            if (m.value > 0)
+                              "  ${_memberName(m.key)} -> ${formatAmount(m.value)}円",
+                          ],
+                        ] else ...[
+                          " ${formatAmount(e.amount / participantIds.length)}円",
+                        ],
                       ].join('\n'),
                     ),
 
@@ -526,7 +618,19 @@ class _EventDetailPageState extends State<EventDetailPage> {
             ),
             ...paidTotals.entries.map(
               (e) => Text(
-                "${_memberName(e.key)}: ${e.value}円",
+                "${_memberName(e.key)}: ${formatAmount(e.value)}円",
+                style: const TextStyle(fontSize: 16),
+              ),
+            ),
+
+            const Divider(),
+            const Text(
+              '各メンバーの負担合計金額',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            ...memberShareTotals.entries.map(
+              (e) => Text(
+                "${_memberName(e.key)}: ${formatAmount(e.value)}円",
                 style: const TextStyle(fontSize: 16),
               ),
             ),
@@ -543,7 +647,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
               final color = e.value >= 0 ? Colors.green : Colors.red;
               final sign = e.value >= 0 ? '+' : '';
               return Text(
-                "${_memberName(e.key)}: $sign${e.value}円",
+                "${_memberName(e.key)}: $sign${formatAmount(e.value)}円",
                 style: TextStyle(color: color),
               );
             }),
