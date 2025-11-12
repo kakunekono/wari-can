@@ -708,7 +708,7 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
 
     _itemController.text = edit?.item ?? "";
     _totalController.text = edit?.amount.toString() ?? "0";
-    _payDateController.text = edit?.payDate.toString() ?? "";
+    _payDateController.text = edit?.payDate ?? "";
     _mode = edit?.mode ?? "manual";
 
     for (final m in widget.members) {
