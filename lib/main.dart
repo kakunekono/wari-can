@@ -204,8 +204,22 @@ class _EventListPageState extends State<EventListPage> {
           ),
           IconButton(
             icon: const Icon(Icons.upload_file),
-            onPressed: () => EventJsonUtils.importEventJson(context),
-          ), // ← 追加
+            tooltip: 'JSON取込',
+            onPressed: () async {
+              final newEvent = await EventJsonUtils.importEventJson(context);
+              if (newEvent != null) {
+                await _loadEvents(); // 一覧更新
+                // 新しいイベントの明細ページへ遷移
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => EventDetailPage(event: newEvent),
+                  ),
+                );
+                _loadEvents(); // 明細で変更があった場合に再読み込み
+              }
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.delete_forever),
             tooltip: 'すべて削除',
