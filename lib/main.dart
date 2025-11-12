@@ -260,7 +260,13 @@ class _EventListPageState extends State<EventListPage> {
                           vertical: 4,
                         ),
                         child: ListTile(
-                          title: Text(e.name),
+                          title: Text(
+                            e.name,
+                            style: const TextStyle(
+                              decoration:
+                                  TextDecoration.underline, // ← ここでアンダーライン
+                            ),
+                          ),
                           subtitle: Text(
                             [
                               'イベントID： ${e.id}',
@@ -277,6 +283,7 @@ class _EventListPageState extends State<EventListPage> {
                                 tooltip: 'JSON出力',
                                 onPressed: () =>
                                     EventJsonUtils.exportEventJson(context, e),
+                                iconSize: 20,
                               ),
                               IconButton(
                                 icon: const Icon(
@@ -285,6 +292,7 @@ class _EventListPageState extends State<EventListPage> {
                                 ),
                                 tooltip: '編集',
                                 onPressed: () => _editEventName(e),
+                                iconSize: 20,
                               ),
                               IconButton(
                                 icon: const Icon(
@@ -293,6 +301,7 @@ class _EventListPageState extends State<EventListPage> {
                                 ),
                                 tooltip: '削除',
                                 onPressed: () => _deleteEvent(i),
+                                iconSize: 20,
                               ),
                             ],
                           ),
