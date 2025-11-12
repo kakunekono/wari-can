@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import 'package:share_plus/share_plus.dart';
@@ -82,29 +81,36 @@ class _EventDetailPageState extends State<EventDetailPage> {
     final sortedDetails = List<Expense>.from(_event.details);
 
     String? prevPayer;
+    String? prevPayDate;
+
     for (final e in sortedDetails) {
       final payerName = _memberName(e.payer);
+      final payDateText = (e.payDate != null && e.payDate!.isNotEmpty)
+          ? e.payDate
+          : "XXXX/XX/XX";
+
+      // 新しい支払者なら見出しを出力（名前＋支払日）
       if (payerName != prevPayer) {
         if (prevPayer != null) buffer.writeln("");
         buffer.writeln("💳 $payerName");
-
-        // 支払日を最初の明細だけ出力
-        final payDateText = (e.payDate != null && e.payDate!.isNotEmpty)
-            ? e.payDate
-            : "XXXX/XX/XX";
         buffer.writeln("支払日: $payDateText");
-
         prevPayer = payerName;
+        prevPayDate = payDateText;
+      }
+      // 同じ支払者で日付が変わったときは支払日のみ出力
+      else if (payDateText != prevPayDate) {
+        buffer.writeln("支払日: $payDateText");
+        prevPayDate = payDateText;
       }
 
-      // 参加者全員の場合は表示しない
-      final allMemberIds = _event.members.map((m) => m.id).toSet();
-      final participantIds = e.participants.toSet();
-      final showParticipants = participantIds.length < allMemberIds.length;
+      // 参加者が全員なら省略
+      final allMembers = _event.members.map((m) => m.id).toSet();
+      final participants = e.participants.toSet();
+      final participantsText = participants.length == allMembers.length
+          ? ""
+          : "：参加者: ${e.participants.map(_memberName).join(', ')}";
 
-      buffer.writeln(
-        "・${e.item}（${e.amount}円）${showParticipants ? "：参加者: ${e.participants.map(_memberName).join(', ')}" : ""}",
-      );
+      buffer.writeln("・${e.item}（${e.amount}円）$participantsText");
     }
 
     buffer.writeln("");
