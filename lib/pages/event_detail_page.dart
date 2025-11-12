@@ -377,10 +377,6 @@ class _EventDetailPageState extends State<EventDetailPage> {
               EventJsonUtils.exportEventJson(context, _event);
             },
           ),
-          IconButton(
-            icon: const Icon(Icons.code),
-            onPressed: () => EventJsonUtils.exportEventJson(context, _event),
-          ), // ← 追加
         ],
       ),
       floatingActionButton: FloatingActionButton(
