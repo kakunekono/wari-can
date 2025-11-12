@@ -885,27 +885,12 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
             ),
             // 1行目：合計表示
             Text(
-              "合計: $subtotal円 / 総額: $total円",
+              "合計: ${formatAmount(subtotal)}円 / 総額: ${formatAmount(total)}円 / 過不足: ${formatAmount(diff)}円",
               style: TextStyle(
-                color: subtotal == total ? Colors.green : Colors.red,
+                color: diff == 0 ? Colors.green : Colors.red,
                 fontWeight: FontWeight.bold,
               ),
             ),
-            // 合計差異チェックの警告
-            if (diff != 0)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: Text(
-                  [
-                    "⚠ 合計と個別合計が一致していません",
-                    "差: ${formatAmount(diff)}円",
-                  ].join("\n"),
-                  style: const TextStyle(
-                    color: Colors.red,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
             const SizedBox(height: 8), // ボタンとの間隔
             // 2行目：ボタン横並び
             Row(
