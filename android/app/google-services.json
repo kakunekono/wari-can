@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "78349811898",
+    "firebase_url": "https://wari-can-83f33-default-rtdb.firebaseio.com",
+    "project_id": "wari-can-83f33",
+    "storage_bucket": "wari-can-83f33.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:78349811898:android:50a46bbf14f9a7500c8283",
+        "android_client_info": {
+          "package_name": "com.example.wari_can"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyADjmQk9nKqUOJkQXLt1SnVv3OZAqtdq5M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

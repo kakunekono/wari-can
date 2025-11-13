@@ -1,16 +1,47 @@
 # wari_can
 
-A new Flutter project.
+## node.js
 
-## Getting Started
+```bash
+sudo apt update && sudo apt install curl build-essential
+```
 
-This project is a starting point for a Flutter application.
+```bash
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.1/install.sh | bash
+```
 
-A few resources to get you started if this is your first Flutter project:
+```bash
+export NVM_DIR="$([ -z "${XDG_CONFIG_HOME-}" ] && printf %s "${HOME}/.nvm" || printf %s "${XDG_CONFIG_HOME}/nvm")"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+```
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+```bash
+nvm install 22
+nvm use 22
+```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Firebase
+
+```bash
+npm install -g firebase-tools
+```
+
+```bash 
+firebase --version
+```
+
+```bash
+dart pub global activate flutterfire_cli
+firebase login
+flutterfire configure
+```
+
+## リリース
+
+```bash
+cd ~/wari_can/build/web;
+git switch gh-pages;
+flutter build web --release --base-href "/wari-can/";
+git commit -am deploy;
+git push origin;
+```

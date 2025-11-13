@@ -1,0 +1,25 @@
+{
+    "flutter": {
+        "platforms": {
+            "android": {
+                "default": {
+                    "projectId": "wari-can-83f33",
+                    "appId": "1:78349811898:android:50a46bbf14f9a7500c8283",
+                    "fileOutput": "android/app/google-services.json"
+                }
+            },
+            "dart": {
+                "lib/firebase_options.dart": {
+                    "projectId": "wari-can-83f33",
+                    "configurations": {
+                        "android": "1:78349811898:android:50a46bbf14f9a7500c8283",
+                        "ios": "1:78349811898:ios:c1bdf82e605b9c4d0c8283",
+                        "macos": "1:78349811898:ios:c1bdf82e605b9c4d0c8283",
+                        "web": "1:78349811898:web:40d89a7cb74c548d0c8283",
+                        "windows": "1:78349811898:web:3cc6b6871fa4e9790c8283"
+                    }
+                }
+            }
+        }
+    }
+}

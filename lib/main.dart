@@ -1,13 +1,30 @@
 import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import 'package:wari_can/models/event.dart';
 import 'package:wari_can/pages/event_detail_page.dart';
+import 'package:wari_can/utils/event_json_utils.dart';
 import 'package:wari_can/utils/utils.dart';
-import '../utils/event_json_utils.dart';
+import 'firebase_options.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // 🔹 匿名認証を実行
+  try {
+    await FirebaseAuth.instance.signInAnonymously();
+    debugPrint("匿名ログイン成功: ${FirebaseAuth.instance.currentUser?.uid}");
+  } catch (e) {
+    debugPrint("匿名ログイン失敗: $e");
+  }
+
   runApp(const WariCanApp());
 }
 
@@ -50,7 +67,71 @@ class _WariCanAppState extends State<WariCanApp> {
       theme: ThemeData.light(useMaterial3: true),
       darkTheme: ThemeData.dark(useMaterial3: true),
       themeMode: _isDark ? ThemeMode.dark : ThemeMode.light,
-      home: EventListPage(onToggleTheme: _toggleTheme, isDark: _isDark),
+      home: kDebugMode
+          ? FirebaseInitCheckPage(onToggleTheme: _toggleTheme, isDark: _isDark)
+          : EventListPage(onToggleTheme: _toggleTheme, isDark: _isDark),
+    );
+  }
+}
+
+// ----------------------
+// Firebase初期化チェックページ
+// ----------------------
+class FirebaseInitCheckPage extends StatefulWidget {
+  final VoidCallback onToggleTheme;
+  final bool isDark;
+
+  const FirebaseInitCheckPage({
+    super.key,
+    required this.onToggleTheme,
+    required this.isDark,
+  });
+
+  @override
+  State<FirebaseInitCheckPage> createState() => _FirebaseInitCheckPageState();
+}
+
+class _FirebaseInitCheckPageState extends State<FirebaseInitCheckPage> {
+  String _status = "Firebase初期化中...";
+
+  @override
+  void initState() {
+    super.initState();
+    _initFirebase();
+  }
+
+  Future<void> _initFirebase() async {
+    try {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+      setState(() {
+        _status = "✅ Firebase接続成功";
+      });
+
+      // 成功したら EventListPage に遷移
+      Future.delayed(const Duration(seconds: 1), () {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => EventListPage(
+              onToggleTheme: widget.onToggleTheme,
+              isDark: widget.isDark,
+            ),
+          ),
+        );
+      });
+    } catch (e) {
+      setState(() {
+        _status = "❌ Firebase接続失敗: $e";
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text("接続確認")),
+      body: Center(child: Text(_status, style: const TextStyle(fontSize: 20))),
     );
   }
 }
@@ -81,6 +162,26 @@ class _EventListPageState extends State<EventListPage> {
   void initState() {
     super.initState();
     _loadEvents();
+
+    // 🔹 匿名ログインの結果を画面に通知
+    final user = FirebaseAuth.instance.currentUser;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (user != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("匿名ログイン成功 ✅ UID: ${user.uid}"),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("匿名ログイン失敗 ❌"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    });
   }
 
   Future<void> _loadEvents() async {
@@ -125,7 +226,6 @@ class _EventListPageState extends State<EventListPage> {
             onPressed: () {
               final name = controller.text.trim();
               if (name.isEmpty) {
-                // 通常のSnackbar表示
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text("イベント名を入力してください"),
@@ -275,6 +375,14 @@ class _EventListPageState extends State<EventListPage> {
             ),
             onPressed: widget.onToggleTheme,
           ),
+          // 🔹 一括アップロードボタンを追加
+          IconButton(
+            icon: const Icon(Icons.cloud_upload),
+            tooltip: 'クラウドへ一括アップロード',
+            onPressed: () async {
+              await uploadLocalEventsToFirestore(context);
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.upload_file),
             tooltip: 'JSON取込',
@@ -336,8 +444,7 @@ class _EventListPageState extends State<EventListPage> {
                           title: Text(
                             e.name,
                             style: const TextStyle(
-                              decoration:
-                                  TextDecoration.underline, // ← ここでアンダーライン
+                              decoration: TextDecoration.underline,
                             ),
                           ),
                           subtitle: Text(
@@ -423,5 +530,41 @@ class _EventListPageState extends State<EventListPage> {
         context,
       ).showSnackBar(const SnackBar(content: Text('すべてのデータを削除しました')));
     }
+  }
+}
+
+// ----------------------
+// Firestore アップロード関数
+// ----------------------
+Future<void> uploadLocalEventsToFirestore(BuildContext context) async {
+  final prefs = await SharedPreferences.getInstance();
+  final keys = prefs.getKeys().where((k) => k.startsWith('event_')).toList();
+
+  try {
+    for (final key in keys) {
+      final jsonString = prefs.getString(key);
+      if (jsonString != null) {
+        final decoded = jsonDecode(jsonString);
+
+        await FirebaseFirestore.instance
+            .collection("events")
+            .doc(decoded["id"])
+            .set(decoded);
+      }
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("ローカルイベントをFirebaseに一括アップロードしました ✅"),
+        backgroundColor: Colors.green,
+      ),
+    );
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text("アップロード中にエラーが発生しました: $e"),
+        backgroundColor: Colors.red,
+      ),
+    );
   }
 }
