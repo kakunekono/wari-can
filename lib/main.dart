@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import 'package:wari_can/models/event.dart';
 import 'package:wari_can/pages/event_detail_page.dart';
+import 'package:wari_can/utils/utils.dart';
 import '../utils/event_json_utils.dart';
 
 void main() {
@@ -104,6 +105,73 @@ class _EventListPageState extends State<EventListPage> {
     await prefs.setString('event_${event.id}', jsonEncode(event.toJson()));
   }
 
+  Future<void> _copyEvent(Event e) async {
+    final controller = TextEditingController(text: "");
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("イベントをコピーして追加"),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(labelText: "新しいイベント名"),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("キャンセル"),
+          ),
+          FilledButton(
+            onPressed: () {
+              final name = controller.text.trim();
+              if (name.isEmpty) {
+                // 通常のSnackbar表示
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("イベント名を入力してください"),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+                return;
+              }
+              Navigator.pop(context, name);
+            },
+            child: const Text("作成"),
+          ),
+        ],
+      ),
+    );
+
+    if (result == null || result.isEmpty) return;
+
+    // 元イベントのメンバーをコピーして新しいイベントを作成
+    final newEvent = Event(
+      id: Uuid().v4().toString(),
+      name: result,
+      members: e.members.map((m) => Member(id: m.id, name: m.name)).toList(),
+      details: [],
+    );
+
+    setState(() => _events.add(newEvent));
+
+    // 作成成功メッセージ
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text("「${e.name}」のメンバーをコピーして新規イベントを作成しました"),
+        backgroundColor: Colors.green,
+      ),
+    );
+
+    // 新規イベントの明細ページへ遷移
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => EventDetailPage(event: newEvent)),
+    );
+
+    // 明細ページから戻ってきたらリストを更新
+    setState(() {});
+  }
+
   Future<void> _deleteEvent(int index) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -139,6 +207,11 @@ class _EventListPageState extends State<EventListPage> {
     await _saveEvent(newEvent);
     _controller.clear();
     _loadEvents();
+    // 新しいイベントの明細ページへ遷移
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => EventDetailPage(event: newEvent)),
+    );
   }
 
   void _openEventDetail(Event event) async {
@@ -270,7 +343,9 @@ class _EventListPageState extends State<EventListPage> {
                           subtitle: Text(
                             [
                               'イベントID： ${e.id}',
-                              'メンバー: ${e.members.length}人',
+                              'メンバー: ${e.members.map((m) => Utils.memberName(m.id, e.members)).join(",")}',
+                              '明細件数： ${e.details.length}件',
+                              '合計金額： ${formatAmount(e.details.fold(0, (sum, e) => sum + e.amount))}円',
                             ].join("\n"),
                           ),
                           onTap: () => _openEventDetail(e),
@@ -278,6 +353,12 @@ class _EventListPageState extends State<EventListPage> {
                             spacing: 8,
                             children: [
                               // 既存 ListTile の trailing Wrap 内に追加
+                              IconButton(
+                                icon: const Icon(Icons.content_copy),
+                                tooltip: 'メンバーをコピーして追加',
+                                iconSize: 20,
+                                onPressed: () => _copyEvent(e),
+                              ),
                               IconButton(
                                 icon: const Icon(Icons.code),
                                 tooltip: 'JSON出力',

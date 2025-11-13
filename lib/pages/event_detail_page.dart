@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:wari_can/utils/utils.dart';
 import '../models/event.dart';
 import '../utils/event_json_utils.dart';
 import 'package:intl/intl.dart';
@@ -44,7 +45,10 @@ class _EventDetailPageState extends State<EventDetailPage> {
   void _sortDetails() {
     _event.details.sort((a, b) {
       // ① 支払者
-      final payerCompare = a.payer.compareTo(b.payer);
+      final payerCompare = Utils.memberName(
+        a.payer,
+        _event.members,
+      ).compareTo(Utils.memberName(b.payer, _event.members));
       if (payerCompare != 0) return payerCompare;
 
       // ② 支払日（null はあとに）
@@ -61,12 +65,6 @@ class _EventDetailPageState extends State<EventDetailPage> {
       return a.item.compareTo(b.item);
     });
   }
-
-  // ----------------------
-  // id → name 変換
-  // ----------------------
-  String _memberName(String id) =>
-      _event.members.firstWhere((m) => m.id == id).name;
 
   // ----------------------
   // 共有用テキスト生成
@@ -116,7 +114,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
     String? prevPayDate;
 
     for (final e in sortedDetails) {
-      final payerName = _memberName(e.payer);
+      final payerName = Utils.memberName(e.payer, _event.members);
       final payDateText = (e.payDate != null && e.payDate!.isNotEmpty)
           ? e.payDate
           : "XXXX/XX/XX";
@@ -151,7 +149,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
           e.shares.forEach((memberId, amount) {
             if (amount > 0) {
               buffer.writeln(
-                "    ${_memberName(memberId)} -> ${formatAmount(amount)}円",
+                "    ${Utils.memberName(memberId, _event.members)} -> ${formatAmount(amount)}円",
               );
             }
           });
@@ -166,20 +164,26 @@ class _EventDetailPageState extends State<EventDetailPage> {
     buffer.writeln("");
     buffer.writeln("💵 メンバーごとの支払合計（単純集計）:");
     for (final e in paidTotals.entries) {
-      buffer.writeln("・${_memberName(e.key)}: ${formatAmount(e.value)}円");
+      buffer.writeln(
+        "・${Utils.memberName(e.key, _event.members)}: ${formatAmount(e.value)}円",
+      );
     }
 
     buffer.writeln("");
     buffer.writeln("💳 メンバーごとの負担合計:");
     for (final e in memberShareTotals.entries) {
-      buffer.writeln("・${_memberName(e.key)}: ${formatAmount(e.value)}円");
+      buffer.writeln(
+        "・${Utils.memberName(e.key, _event.members)}: ${formatAmount(e.value)}円",
+      );
     }
 
     buffer.writeln("");
     buffer.writeln("💴 メンバーごとの支払合計（精算後残高）:");
     for (final e in totals.entries) {
       final sign = e.value >= 0 ? '+' : '';
-      buffer.writeln("・${_memberName(e.key)}: $sign${formatAmount(e.value)}円");
+      buffer.writeln(
+        "・${Utils.memberName(e.key, _event.members)}: $sign${formatAmount(e.value)}円",
+      );
     }
 
     buffer.writeln("");
@@ -422,7 +426,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
         final pay = amount < recvAmount ? amount : recvAmount;
         if (pay > 0) {
           result.add(
-            "${_memberName(payer['id'] as String)} → ${_memberName(receiver['id'] as String)} に ${formatAmount(pay)}円",
+            "${Utils.memberName(payer['id'] as String, _event.members)} → ${Utils.memberName(receiver['id'] as String, _event.members)} に ${formatAmount(pay)}円",
           );
           amount -= pay;
           receiver['amount'] = recvAmount - pay;
@@ -541,7 +545,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     child: Text(
-                      "💳 ${_memberName(e.payer)}",
+                      "💳 ${Utils.memberName(e.payer, _event.members)}",
                       style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -581,7 +585,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
                     ),
                     subtitle: Text(
                       [
-                        "支払者: ${_memberName(e.payer)}",
+                        "支払者: ${Utils.memberName(e.payer, _event.members)}",
                         if (e.payDate != null && e.payDate!.isNotEmpty)
                           "支払日: ${e.payDate}",
                         "支払金額: ${formatAmount(e.amount)}円",
@@ -589,7 +593,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
                         if (showParticipants) ...[
                           for (final m in e.shares.entries) ...[
                             if (m.value > 0)
-                              "  ${_memberName(m.key)} -> ${formatAmount(m.value)}円",
+                              "  ${Utils.memberName(m.key, _event.members)} -> ${formatAmount(m.value)}円",
                           ],
                         ] else ...[
                           " ${formatAmount(e.amount / participantIds.length)}円",
@@ -625,7 +629,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
             ),
             ...paidTotals.entries.map(
               (e) => Text(
-                "${_memberName(e.key)}: ${formatAmount(e.value)}円",
+                "${Utils.memberName(e.key, _event.members)}: ${formatAmount(e.value)}円",
                 style: const TextStyle(fontSize: 16),
               ),
             ),
@@ -637,7 +641,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
             ),
             ...memberShareTotals.entries.map(
               (e) => Text(
-                "${_memberName(e.key)}: ${formatAmount(e.value)}円",
+                "${Utils.memberName(e.key, _event.members)}: ${formatAmount(e.value)}円",
                 style: const TextStyle(fontSize: 16),
               ),
             ),
@@ -651,10 +655,14 @@ class _EventDetailPageState extends State<EventDetailPage> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             ...balances.entries.map((e) {
-              final color = e.value >= 0 ? Colors.green : Colors.red;
+              final color = e.value > 0
+                  ? Colors.green
+                  : (e.value < 0
+                        ? Colors.red
+                        : Theme.of(context).textTheme.bodyMedium?.color);
               final sign = e.value >= 0 ? '+' : '';
               return Text(
-                "${_memberName(e.key)}: $sign${formatAmount(e.value)}円",
+                "${Utils.memberName(e.key, _event.members)}: $sign${formatAmount(e.value)}円",
                 style: TextStyle(color: color),
               );
             }),
@@ -711,8 +719,8 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
   @override
   void initState() {
     super.initState();
-    final edit = widget.editExpense;
 
+    final edit = widget.editExpense;
     _itemController.text = edit?.item ?? "";
     _totalController.text = edit?.amount.toString() ?? "0";
     _payDateController.text = edit?.payDate ?? "";
@@ -728,9 +736,7 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
       );
     }
 
-    _payerId =
-        edit?.payer ??
-        (widget.members.isNotEmpty ? widget.members.first.id : null);
+    _payerId = edit?.payer;
 
     if (_mode == "equal") {
       WidgetsBinding.instance.addPostFrameCallback((_) => _applyEqualSplit());
@@ -903,8 +909,36 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
                 const SizedBox(width: 8),
                 FilledButton(
                   onPressed: subtotal != total
-                      ? null // 合計が一致していなければ登録不可
+                      ? null
                       : () {
+                          if (_payerId == null || _payerId!.isEmpty) {
+                            // 🟥 支払者未選択時はエラー表示
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('支払者を選択してください。')),
+                            );
+                            return;
+                          }
+
+                          // 支出名未入力チェック
+                          if (_itemController.text.trim().isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('支出名を入力してください')),
+                            );
+                            return;
+                          }
+
+                          // 合計金額未入力または 0 のチェック
+                          final total =
+                              int.tryParse(_totalController.text) ?? 0;
+                          if (total <= 0) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('合計金額を1円以上で入力してください'),
+                              ),
+                            );
+                            return;
+                          }
+
                           final shares = <String, int>{};
                           for (final m in widget.members) {
                             shares[m.id] =
@@ -913,7 +947,7 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
                           Navigator.pop(context, {
                             'item': _itemController.text.trim(),
                             'payerId': _payerId,
-                            'total': total,
+                            'total': int.tryParse(_totalController.text) ?? 0,
                             'shares': shares,
                             'mode': _mode,
                             'payDate': _payDateController.text.isNotEmpty
