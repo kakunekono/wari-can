@@ -41,7 +41,12 @@ flutterfire configure
 ```bash
 cd ~/wari_can/build/web;
 git switch gh-pages;
+#
 flutter build web --release --base-href "/wari-can/";
+#
+flutter build web --release --base-href /wari-can/ --pwa-strategy=refresh
+flutter build web --release --base-href /wari-can/ --pwa-strategy=none
+
 git commit -am deploy;
 git push origin;
 ```
