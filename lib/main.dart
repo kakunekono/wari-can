@@ -335,7 +335,23 @@ class _EventListPageState extends State<EventListPage> {
       context,
       MaterialPageRoute(builder: (_) => EventDetailPage(event: event)),
     );
-    _loadEvents();
+
+    // 🔹 Firestoreから最新イベントを取得
+    final snapshot = await FirebaseFirestore.instance
+        .collection("events")
+        .doc(event.id)
+        .get();
+
+    if (snapshot.exists) {
+      final data = snapshot.data();
+      if (data != null) {
+        final updatedEvent = Event.fromJson(data);
+        final index = _events.indexWhere((e) => e.id == updatedEvent.id);
+        if (index != -1) {
+          setState(() => _events[index] = updatedEvent);
+        }
+      }
+    }
   }
 
   // 🔹 イベント名の編集処理

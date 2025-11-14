@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
@@ -36,10 +37,55 @@ class _EventDetailPageState extends State<EventDetailPage> {
     _event = widget.event;
   }
 
+  @override
+  void dispose() {
+    super.dispose();
+  }
+
   Future<void> _saveEvent() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('event_${_event.id}', jsonEncode(_event.toJson()));
     setState(() {});
+  }
+
+  Future<void> _saveEventToFirestore() async {
+    try {
+      await FirebaseFirestore.instance
+          .collection("events")
+          .doc(_event.id)
+          .set(_event.toJson(), SetOptions(merge: true));
+      debugPrint("Firestoreにイベント保存完了: ${_event.name}");
+    } catch (e) {
+      debugPrint("Firestore保存失敗: $e");
+    }
+  }
+
+  Future<bool> _onWillPopConfirmSave() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("保存確認"),
+        content: const Text("編集内容を保存して戻りますか？"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("キャンセル"),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("保存して戻る"),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _saveEvent(); // ローカル保存
+      await _saveEventToFirestore(); // Firestore保存
+      return true; // 戻る許可
+    } else {
+      return false; // 戻らない
+    }
   }
 
   void _sortDetails() {
@@ -448,244 +494,255 @@ class _EventDetailPageState extends State<EventDetailPage> {
     final paidTotals = _calcPaidTotals();
     final memberShareTotals = _memberShareTotals();
 
-    // 支払者順にソート
     final sortedDetails = List<Expense>.from(_event.details);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_event.name),
-        actions: [
-          IconButton(icon: const Icon(Icons.share), onPressed: _shareSummary),
-          IconButton(
-            icon: const Icon(Icons.code),
-            onPressed: () {
-              EventJsonUtils.exportEventJson(context, _event);
-            },
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _addExpense(),
-        child: const Icon(Icons.add),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('イベントID: ${_event.id}'),
-            const SizedBox(height: 8),
-            Text('メンバー数: ${_event.members.length}人'),
-            Text('支出件数: ${_event.details.length}件'),
-            const Divider(height: 32),
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return; // すでに戻っている場合は何もしない
 
-            // ----------------------
-            // メンバー一覧
-            // ----------------------
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _memberController,
-                    decoration: const InputDecoration(
-                      labelText: 'メンバー名を入力',
-                      border: OutlineInputBorder(),
+        final confirmed = await _onWillPopConfirmSave();
+        if (confirmed) Navigator.pop(context);
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(_event.name),
+          actions: [
+            IconButton(icon: const Icon(Icons.share), onPressed: _shareSummary),
+            IconButton(
+              icon: const Icon(Icons.code),
+              onPressed: () {
+                EventJsonUtils.exportEventJson(context, _event);
+              },
+            ),
+          ],
+        ),
+        floatingActionButton: FloatingActionButton(
+          onPressed: () => _addExpense(),
+          child: const Icon(Icons.add),
+        ),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('イベントID: ${_event.id}'),
+              const SizedBox(height: 8),
+              Text('メンバー数: ${_event.members.length}人'),
+              Text('支出件数: ${_event.details.length}件'),
+              const Divider(height: 32),
+
+              // ----------------------
+              // メンバー一覧
+              // ----------------------
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _memberController,
+                      decoration: const InputDecoration(
+                        labelText: 'メンバー名を入力',
+                        border: OutlineInputBorder(),
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                IconButton(
-                  onPressed: _addMember,
-                  icon: const Icon(Icons.person_add, color: Colors.blue),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'メンバー一覧',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            ..._event.members.map(
-              (m) => Card(
-                child: ListTile(
-                  title: Text(m.name),
-                  trailing: Wrap(
-                    spacing: 8,
-                    children: [
-                      IconButton(
-                        onPressed: () => _editMemberName(m.id),
-                        icon: const Icon(Icons.edit, color: Colors.orange),
-                      ),
-                      IconButton(
-                        onPressed: () => _deleteMember(m.id),
-                        icon: const Icon(Icons.delete, color: Colors.red),
-                      ),
-                    ],
+                  const SizedBox(width: 8),
+                  IconButton(
+                    onPressed: _addMember,
+                    icon: const Icon(Icons.person_add, color: Colors.blue),
                   ),
-                ),
+                ],
               ),
-            ),
-            const Divider(),
-
-            // ----------------------
-            // 明細一覧
-            // ----------------------
-            const Text(
-              '支出明細',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            ...sortedDetails.asMap().entries.expand((entry) {
-              final i = entry.key;
-              final e = entry.value;
-              final prevPayer = i > 0 ? sortedDetails[i - 1].payer : null;
-              final widgets = <Widget>[];
-
-              if (e.payer != prevPayer) {
-                widgets.add(
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: Text(
-                      "💳 ${Utils.memberName(e.payer, _event.members)}",
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blueAccent,
-                      ),
-                    ),
-                  ),
-                );
-              }
-
-              // 参加者全員の場合は表示しない
-              final allMemberIds = _event.members.map((m) => m.id).toSet();
-              final participantIds = e.participants.toSet();
-              final showParticipants =
-                  participantIds.length < allMemberIds.length;
-
-              widgets.add(
-                Card(
+              const SizedBox(height: 12),
+              const Text(
+                'メンバー一覧',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              ..._event.members.map(
+                (m) => Card(
                   child: ListTile(
-                    title: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          e.item,
-                          style: const TextStyle(
-                            decoration:
-                                TextDecoration.underline, // ← ここでアンダーライン
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Icon(
-                          e.mode == "manual" ? Icons.tune : Icons.balance,
-                          size: 18,
-                          color: Colors.grey,
-                        ),
-                      ],
-                    ),
-                    subtitle: Text(
-                      [
-                        "支払者: ${Utils.memberName(e.payer, _event.members)}",
-                        if (e.payDate != null && e.payDate!.isNotEmpty)
-                          "支払日: ${e.payDate}",
-                        "支払金額: ${formatAmount(e.amount)}円",
-                        "負担金額:",
-                        if (showParticipants) ...[
-                          for (final m in e.shares.entries) ...[
-                            if (m.value > 0)
-                              "  ${Utils.memberName(m.key, _event.members)} -> ${formatAmount(m.value)}円",
-                          ],
-                        ] else ...[
-                          " ${formatAmount(e.amount / participantIds.length)}円",
-                        ],
-                      ].join('\n'),
-                    ),
-
+                    title: Text(m.name),
                     trailing: Wrap(
                       spacing: 8,
                       children: [
                         IconButton(
+                          onPressed: () => _editMemberName(m.id),
                           icon: const Icon(Icons.edit, color: Colors.orange),
-                          onPressed: () =>
-                              _addExpense(editExpense: e, editIndex: i),
                         ),
                         IconButton(
+                          onPressed: () => _deleteMember(m.id),
                           icon: const Icon(Icons.delete, color: Colors.red),
-                          onPressed: () => _deleteExpense(i),
                         ),
                       ],
                     ),
                   ),
                 ),
-              );
-
-              return widgets;
-            }),
-
-            const Divider(),
-            const Text(
-              '各メンバーの支払合計金額',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            ...paidTotals.entries.map(
-              (e) => Text(
-                "${Utils.memberName(e.key, _event.members)}: ${formatAmount(e.value)}円",
-                style: const TextStyle(fontSize: 16),
               ),
-            ),
+              const Divider(),
 
-            const Divider(),
-            const Text(
-              '各メンバーの負担合計金額',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            ...memberShareTotals.entries.map(
-              (e) => Text(
-                "${Utils.memberName(e.key, _event.members)}: ${formatAmount(e.value)}円",
-                style: const TextStyle(fontSize: 16),
+              // ----------------------
+              // 明細一覧
+              // ----------------------
+              const Text(
+                '支出明細',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
-            ),
-            const Divider(),
+              ...sortedDetails.asMap().entries.expand((entry) {
+                final i = entry.key;
+                final e = entry.value;
+                final prevPayer = i > 0 ? sortedDetails[i - 1].payer : null;
+                final widgets = <Widget>[];
 
-            // ----------------------
-            // 各メンバー支払合計
-            // ----------------------
-            const Text(
-              'メンバーごとの支払合計精算金額',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            ...balances.entries.map((e) {
-              final color = e.value > 0
-                  ? Colors.green
-                  : (e.value < 0
-                        ? Colors.red
-                        : Theme.of(context).textTheme.bodyMedium?.color);
-              final sign = e.value >= 0 ? '+' : '';
-              return Text(
-                "${Utils.memberName(e.key, _event.members)}: $sign${formatAmount(e.value)}円",
-                style: TextStyle(color: color),
-              );
-            }),
-            const Divider(),
+                if (e.payer != prevPayer) {
+                  widgets.add(
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Text(
+                        "💳 ${Utils.memberName(e.payer, _event.members)}",
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blueAccent,
+                        ),
+                      ),
+                    ),
+                  );
+                }
 
-            // ----------------------
-            // 精算結果
-            // ----------------------
-            const Text(
-              '精算結果',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            ...settlements.map((s) => Text(s)),
+                // 参加者全員の場合は表示しない
+                final allMemberIds = _event.members.map((m) => m.id).toSet();
+                final participantIds = e.participants.toSet();
+                final showParticipants =
+                    participantIds.length < allMemberIds.length;
 
-            const SizedBox(height: 24),
-            Center(
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.arrow_back),
-                label: const Text("戻る"),
-                onPressed: () => Navigator.pop(context),
+                widgets.add(
+                  Card(
+                    child: ListTile(
+                      title: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            e.item,
+                            style: const TextStyle(
+                              decoration:
+                                  TextDecoration.underline, // ← ここでアンダーライン
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(
+                            e.mode == "manual" ? Icons.tune : Icons.balance,
+                            size: 18,
+                            color: Colors.grey,
+                          ),
+                        ],
+                      ),
+                      subtitle: Text(
+                        [
+                          "支払者: ${Utils.memberName(e.payer, _event.members)}",
+                          if (e.payDate != null && e.payDate!.isNotEmpty)
+                            "支払日: ${e.payDate}",
+                          "支払金額: ${formatAmount(e.amount)}円",
+                          "負担金額:",
+                          if (showParticipants) ...[
+                            for (final m in e.shares.entries) ...[
+                              if (m.value > 0)
+                                "  ${Utils.memberName(m.key, _event.members)} -> ${formatAmount(m.value)}円",
+                            ],
+                          ] else ...[
+                            " ${formatAmount(e.amount / participantIds.length)}円",
+                          ],
+                        ].join('\n'),
+                      ),
+
+                      trailing: Wrap(
+                        spacing: 8,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.edit, color: Colors.orange),
+                            onPressed: () =>
+                                _addExpense(editExpense: e, editIndex: i),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            onPressed: () => _deleteExpense(i),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+
+                return widgets;
+              }),
+
+              const Divider(),
+              const Text(
+                '各メンバーの支払合計金額',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
-            ),
-          ],
+              ...paidTotals.entries.map(
+                (e) => Text(
+                  "${Utils.memberName(e.key, _event.members)}: ${formatAmount(e.value)}円",
+                  style: const TextStyle(fontSize: 16),
+                ),
+              ),
+
+              const Divider(),
+              const Text(
+                '各メンバーの負担合計金額',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              ...memberShareTotals.entries.map(
+                (e) => Text(
+                  "${Utils.memberName(e.key, _event.members)}: ${formatAmount(e.value)}円",
+                  style: const TextStyle(fontSize: 16),
+                ),
+              ),
+              const Divider(),
+
+              // ----------------------
+              // 各メンバー支払合計
+              // ----------------------
+              const Text(
+                'メンバーごとの支払合計精算金額',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              ...balances.entries.map((e) {
+                final color = e.value > 0
+                    ? Colors.green
+                    : (e.value < 0
+                          ? Colors.red
+                          : Theme.of(context).textTheme.bodyMedium?.color);
+                final sign = e.value >= 0 ? '+' : '';
+                return Text(
+                  "${Utils.memberName(e.key, _event.members)}: $sign${formatAmount(e.value)}円",
+                  style: TextStyle(color: color),
+                );
+              }),
+              const Divider(),
+
+              // ----------------------
+              // 精算結果
+              // ----------------------
+              const Text(
+                '精算結果',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              ...settlements.map((s) => Text(s)),
+
+              const SizedBox(height: 24),
+              Center(
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.arrow_back),
+                  label: const Text("戻る"),
+                  onPressed: () async {
+                    final allowPop = await _onWillPopConfirmSave();
+                    if (allowPop) Navigator.pop(context);
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
