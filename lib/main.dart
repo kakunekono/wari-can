@@ -13,6 +13,8 @@ import 'package:wari_can/utils/event_json_utils.dart';
 import 'package:wari_can/utils/utils.dart';
 import 'firebase_options.dart';
 
+import 'package:google_fonts/google_fonts.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
@@ -64,9 +66,23 @@ class _WariCanAppState extends State<WariCanApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: '割り勘アプリ',
-      theme: ThemeData.light(useMaterial3: true),
-      darkTheme: ThemeData.dark(useMaterial3: true),
       themeMode: _isDark ? ThemeMode.dark : ThemeMode.light,
+      theme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
+        textTheme: GoogleFonts.notoSansJpTextTheme(ThemeData.light().textTheme),
+      ),
+      darkTheme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.indigo,
+          brightness: Brightness.dark,
+        ),
+        textTheme: GoogleFonts.notoSansJpTextTheme(
+          ThemeData.dark().textTheme, // ← ここが重要
+        ),
+      ),
+
       home: kDebugMode
           ? FirebaseInitCheckPage(onToggleTheme: _toggleTheme, isDark: _isDark)
           : EventListPage(onToggleTheme: _toggleTheme, isDark: _isDark),
