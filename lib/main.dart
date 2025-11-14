@@ -395,6 +395,12 @@ class _EventListPageState extends State<EventListPage> {
         onPressed: () => _copyEvent(e),
       ),
       IconButton(
+        icon: const Icon(Icons.cloud_upload, color: Colors.green),
+        tooltip: 'クラウドへアップロード',
+        onPressed: () => uploadEventToCloud(context, e.toJson()),
+        iconSize: 20,
+      ),
+      IconButton(
         icon: const Icon(Icons.code),
         tooltip: 'JSON出力',
         onPressed: () => EventJsonUtils.exportEventJson(context, e),
@@ -600,12 +606,8 @@ Future<void> uploadLocalEventsToFirestore(BuildContext context) async {
     for (final key in keys) {
       final jsonString = prefs.getString(key);
       if (jsonString != null) {
-        final decoded = jsonDecode(jsonString);
-
-        await FirebaseFirestore.instance
-            .collection("events")
-            .doc(decoded["id"])
-            .set(decoded);
+        final decoded = jsonDecode(jsonString) as Map<String, dynamic>;
+        await uploadEventToCloud(context, decoded);
       }
     }
 
@@ -622,5 +624,34 @@ Future<void> uploadLocalEventsToFirestore(BuildContext context) async {
         backgroundColor: Colors.red,
       ),
     );
+  }
+}
+
+Future<void> uploadEventToCloud(
+  BuildContext context,
+  Map<String, dynamic> eventData,
+) async {
+  final id = eventData["id"];
+  if (id == null) {
+    debugPrint("イベントIDが存在しません");
+    return;
+  }
+
+  // 現在時刻を追加（ISO8601文字列）
+  eventData["uploadedAt"] = DateTime.now().toIso8601String();
+
+  try {
+    await FirebaseFirestore.instance
+        .collection("events")
+        .doc(id)
+        .set(eventData, SetOptions(merge: true));
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text("クラウドにアップロードしました")));
+  } catch (e) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text("アップロード失敗: $e")));
   }
 }
