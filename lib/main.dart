@@ -379,6 +379,42 @@ class _EventListPageState extends State<EventListPage> {
     }
   }
 
+  // ----------------------
+  // 共通のイベント操作ボタン
+  // ----------------------
+  List<Widget> buildEventActionButtons(
+    BuildContext context,
+    Event e,
+    int index,
+  ) {
+    return [
+      IconButton(
+        icon: const Icon(Icons.content_copy),
+        tooltip: 'メンバーをコピーして追加',
+        iconSize: 20,
+        onPressed: () => _copyEvent(e),
+      ),
+      IconButton(
+        icon: const Icon(Icons.code),
+        tooltip: 'JSON出力',
+        onPressed: () => EventJsonUtils.exportEventJson(context, e),
+        iconSize: 20,
+      ),
+      IconButton(
+        icon: const Icon(Icons.edit, color: Colors.blue),
+        tooltip: '編集',
+        onPressed: () => _editEventName(e),
+        iconSize: 20,
+      ),
+      IconButton(
+        icon: const Icon(Icons.delete, color: Colors.red),
+        tooltip: '削除',
+        onPressed: () => _deleteEvent(index),
+        iconSize: 20,
+      ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -456,59 +492,63 @@ class _EventListPageState extends State<EventListPage> {
                           horizontal: 8,
                           vertical: 4,
                         ),
-                        child: ListTile(
-                          title: Text(
-                            e.name,
-                            style: const TextStyle(
-                              decoration: TextDecoration.underline,
-                            ),
-                          ),
-                          subtitle: Text(
-                            [
-                              'イベントID： ${e.id}',
-                              'メンバー: ${e.members.map((m) => Utils.memberName(m.id, e.members)).join(",")}',
-                              '明細件数： ${e.details.length}件',
-                              '合計金額： ${formatAmount(e.details.fold(0, (sum, e) => sum + e.amount))}円',
-                            ].join("\n"),
-                          ),
-                          onTap: () => _openEventDetail(e),
-                          trailing: Wrap(
-                            spacing: 8,
-                            children: [
-                              // 既存 ListTile の trailing Wrap 内に追加
-                              IconButton(
-                                icon: const Icon(Icons.content_copy),
-                                tooltip: 'メンバーをコピーして追加',
-                                iconSize: 20,
-                                onPressed: () => _copyEvent(e),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.code),
-                                tooltip: 'JSON出力',
-                                onPressed: () =>
-                                    EventJsonUtils.exportEventJson(context, e),
-                                iconSize: 20,
-                              ),
-                              IconButton(
-                                icon: const Icon(
-                                  Icons.edit,
-                                  color: Colors.blue,
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            final isWide = constraints.maxWidth > 600;
+
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                ListTile(
+                                  title: Text(
+                                    e.name,
+                                    style: const TextStyle(
+                                      decoration: TextDecoration.underline,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    [
+                                      'イベントID： ${e.id}',
+                                      'メンバー: ${e.members.map((m) => Utils.memberName(m.id, e.members)).join(",")}',
+                                      '明細件数： ${e.details.length}件',
+                                      '合計金額： ${formatAmount(e.details.fold(0, (sum, e) => sum + e.amount))}円',
+                                    ].join("\n"),
+                                  ),
+                                  onTap: () => _openEventDetail(e),
+
+                                  // 幅が広いときは trailing に右寄せで表示
+                                  trailing: isWide
+                                      ? Wrap(
+                                          spacing: 8,
+                                          children: buildEventActionButtons(
+                                            context,
+                                            e,
+                                            i,
+                                          ),
+                                        )
+                                      : null,
                                 ),
-                                tooltip: '編集',
-                                onPressed: () => _editEventName(e),
-                                iconSize: 20,
-                              ),
-                              IconButton(
-                                icon: const Icon(
-                                  Icons.delete,
-                                  color: Colors.red,
-                                ),
-                                tooltip: '削除',
-                                onPressed: () => _deleteEvent(i),
-                                iconSize: 20,
-                              ),
-                            ],
-                          ),
+
+                                // 幅が狭いときは下部に横並びで表示
+                                if (!isWide)
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: buildEventActionButtons(
+                                        context,
+                                        e,
+                                        i,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            );
+                          },
                         ),
                       );
                     },
