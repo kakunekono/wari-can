@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <!--
     If you are serving your web app in a path other than the root, change the
@@ -27,12 +28,31 @@
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
+  <link rel="icon" type="image/png" href="favicon.png" />
 
   <title>wari_can</title>
   <link rel="manifest" href="manifest.json">
+
+  <!-- web/index.html -->
+  <script src="https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js"></script>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyCTdbUZet1bqBlubud5T0Y2c2yt8XAICZo",
+      authDomain: "wari-can-83f33.firebaseapp.com",
+      databaseURL: "https://wari-can-83f33-default-rtdb.firebaseio.com",
+      projectId: "wari-can-83f33",
+      storageBucket: "wari-can-83f33.firebasestorage.app",
+      messagingSenderId: "78349811898",
+      appId: "1:78349811898:web:40d89a7cb74c548d0c8283",
+      measurementId: "G-JZFK3MQB6H"
+    };
+  </script>
 </head>
+
 <body>
   <script src="flutter_bootstrap.js" async></script>
 </body>
+
 </html>
