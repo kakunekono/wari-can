@@ -1,11 +1,11 @@
 // lib/utils/event_json_utils.dart
 import 'dart:convert';
+import '../models/event.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
-import '../models/event.dart';
-import 'package:share_plus/share_plus.dart';
 
 class EventJsonUtils {
   static final _uuid = Uuid();

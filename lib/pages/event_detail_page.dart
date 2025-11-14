@@ -1,13 +1,13 @@
 import 'dart:convert';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:uuid/uuid.dart';
-import 'package:share_plus/share_plus.dart';
-import 'package:wari_can/utils/utils.dart';
 import '../models/event.dart';
 import '../utils/event_json_utils.dart';
+import '../utils/firestore_helper.dart';
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
+import 'package:wari_can/utils/utils.dart';
 
 String formatAmount(num value) {
   if (value % 1 == 0) {
@@ -48,18 +48,6 @@ class _EventDetailPageState extends State<EventDetailPage> {
     setState(() {});
   }
 
-  Future<void> _saveEventToFirestore() async {
-    try {
-      await FirebaseFirestore.instance
-          .collection("events")
-          .doc(_event.id)
-          .set(_event.toJson(), SetOptions(merge: true));
-      debugPrint("Firestoreにイベント保存完了: ${_event.name}");
-    } catch (e) {
-      debugPrint("Firestore保存失敗: $e");
-    }
-  }
-
   Future<bool> _onWillPopConfirmSave() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -81,7 +69,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
 
     if (confirmed == true) {
       await _saveEvent(); // ローカル保存
-      await _saveEventToFirestore(); // Firestore保存
+      await saveEventToFirestore(_event); // Firestore保存
       return true; // 戻る許可
     } else {
       return false; // 戻らない

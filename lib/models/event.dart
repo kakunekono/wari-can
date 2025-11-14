@@ -8,6 +8,7 @@ class Event {
   DateTime? endDate;
   List<Member> members; // ← 文字列ではなく Member 型に
   List<Expense> details;
+  final DateTime? uploadedAt;
 
   Event({
     required this.id,
@@ -16,6 +17,7 @@ class Event {
     this.endDate,
     List<Member>? members,
     List<Expense>? details,
+    this.uploadedAt,
   }) : members = members ?? [],
        details = details ?? [];
 
@@ -26,6 +28,7 @@ class Event {
     'endDate': endDate?.toIso8601String(),
     'members': members.map((m) => m.toJson()).toList(),
     'details': details.map((e) => e.toJson()).toList(),
+    'uploadedAt': uploadedAt?.toIso8601String(),
   };
 
   static Event fromJson(Map<String, dynamic> json) => Event(
@@ -47,6 +50,7 @@ class Event {
             ?.map((e) => Expense.fromJson(e))
             .toList() ??
         [],
+    uploadedAt: json['uploadedAt'],
   );
 }
 

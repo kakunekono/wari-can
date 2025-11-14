@@ -1,19 +1,19 @@
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import 'package:wari_can/models/event.dart';
 import 'package:wari_can/pages/event_detail_page.dart';
 import 'package:wari_can/utils/event_json_utils.dart';
+import 'package:wari_can/utils/firestore_helper.dart';
 import 'package:wari_can/utils/utils.dart';
-import 'firebase_options.dart';
-
-import 'package:google_fonts/google_fonts.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -312,6 +312,7 @@ class _EventListPageState extends State<EventListPage> {
     final prefs = await SharedPreferences.getInstance();
     final event = _events[index];
     await prefs.remove('event_${event.id}');
+    await deleteEventFromFirestore(event.id); // Firestore削除
     setState(() => _events.removeAt(index));
   }
 
@@ -391,6 +392,7 @@ class _EventListPageState extends State<EventListPage> {
         details: event.details,
       );
       await _saveEvent(updated);
+      await saveEventToFirestore(updated);
       _loadEvents();
     }
   }
