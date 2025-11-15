@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'package:firebase_auth/firebase_auth.dart';
+
 import '../models/event.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -96,6 +98,11 @@ class EventJsonUtils {
 
       final timestamps = TimestampedEntity.newTimestamps();
 
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) {
+        throw Exception('ログインユーザーが見つかりません');
+      }
+
       final newEvent = Event(
         id: _uuid.v4(),
         name: oldEvent.name,
@@ -103,6 +110,8 @@ class EventJsonUtils {
         endDate: oldEvent.endDate,
         members: oldEvent.members,
         details: oldEvent.details,
+        ownerUid: uid, // 作成者のUIDを設定
+        sharedWith: [uid], // 初期状態では自分だけに共有
         createAt: timestamps['createAt']!,
         updateAt: timestamps['updateAt']!,
       );

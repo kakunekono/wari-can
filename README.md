@@ -50,3 +50,8 @@ flutter build web --release --base-href /wari-can/ --pwa-strategy=none
 git commit -am deploy;
 git push origin;
 ```
+
+
+```bash
+flutter run -d web-server --web-port=8080 --web-hostname=0.0.0.0
+```

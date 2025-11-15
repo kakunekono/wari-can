@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/event.dart';
@@ -11,6 +12,9 @@ import '../models/event.dart';
 /// Firestoreの "events" コレクションに保存されます。
 Future<void> saveEventToFirestore(Event event) async {
   try {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) throw Exception('ログインユーザーが見つかりません');
+
     final updated = Event(
       id: event.id,
       name: event.name,
@@ -18,6 +22,10 @@ Future<void> saveEventToFirestore(Event event) async {
       endDate: event.endDate,
       members: event.members,
       details: event.details,
+      ownerUid: event.ownerUid, // 既存が null なら自分を設定
+      sharedWith: event.sharedWith.isNotEmpty
+          ? event.sharedWith
+          : [uid], // 空なら自分を追加
       createAt: event.createAt,
       updateAt: DateTime.now(),
     );
@@ -26,6 +34,7 @@ Future<void> saveEventToFirestore(Event event) async {
         .collection("events")
         .doc(event.id)
         .set(updated.toJson(), SetOptions(merge: true));
+
     debugPrint("Firestoreにイベント保存完了: ${event.name}");
   } catch (e) {
     debugPrint("Firestore保存失敗: $e");

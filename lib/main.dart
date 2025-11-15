@@ -1,25 +1,55 @@
-import 'package:flutter/foundation.dart';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:wari_can/models/event.dart';
+import 'package:wari_can/pages/event_list_page.dart';
 
 import 'firebase_options.dart';
-import 'pages/firebase_init_check_page.dart';
-import 'pages/event_list_page.dart';
+
+import 'pages/login_choice_page.dart'; // ← 新規作成したログイン選択ページ
+
+/// ローカルに保存されたイベントに ownerUid / sharedWith を補完して再保存する。
+Future<void> migrateLocalEventsIfNeeded() async {
+  final prefs = await SharedPreferences.getInstance();
+  final keys = prefs.getKeys().where((k) => k.startsWith('event_')).toList();
+
+  final uid = FirebaseAuth.instance.currentUser?.uid;
+  if (uid == null) return; // ログインしていない場合はスキップ
+
+  for (final key in keys) {
+    final jsonString = prefs.getString(key);
+    if (jsonString == null) continue;
+
+    try {
+      final decoded = jsonDecode(jsonString);
+      final event = Event.fromJson(decoded);
+
+      // すでに ownerUid があるならスキップ
+      if (event.ownerUid.isNotEmpty && event.sharedWith.isNotEmpty) continue;
+
+      final updated = event.copyWith(
+        ownerUid: event.ownerUid.isNotEmpty ? event.ownerUid : uid,
+        sharedWith: event.sharedWith.isNotEmpty ? event.sharedWith : [uid],
+      );
+
+      await prefs.setString(key, jsonEncode(updated.toJson()));
+    } catch (e) {
+      // 破損データなどはスキップ
+      debugPrint('イベント修復失敗 [$key]: $e');
+    }
+  }
+
+  debugPrint('ローカルイベントのマイグレーション完了');
+}
 
 /// アプリのエントリーポイント。
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-
-  // 🔹 匿名認証を実行
-  try {
-    await FirebaseAuth.instance.signInAnonymously();
-    debugPrint("匿名ログイン成功: ${FirebaseAuth.instance.currentUser?.uid}");
-  } catch (e) {
-    debugPrint("匿名ログイン失敗: $e");
-  }
+  await migrateLocalEventsIfNeeded();
 
   runApp(const WariCanApp());
 }
@@ -75,9 +105,38 @@ class _WariCanAppState extends State<WariCanApp> {
         ),
         textTheme: ThemeData.dark().textTheme,
       ),
-      home: kDebugMode
-          ? FirebaseInitCheckPage(onToggleTheme: _toggleTheme, isDark: _isDark)
-          : EventListPage(onToggleTheme: _toggleTheme, isDark: _isDark),
+      home: AuthGate(onToggleTheme: _toggleTheme, isDark: _isDark),
+    );
+  }
+}
+
+class AuthGate extends StatelessWidget {
+  final VoidCallback onToggleTheme;
+  final bool isDark;
+
+  const AuthGate({
+    super.key,
+    required this.onToggleTheme,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        if (snapshot.hasData) {
+          return EventListPage(onToggleTheme: onToggleTheme, isDark: isDark);
+        } else {
+          return LoginChoicePage(onToggleTheme: onToggleTheme, isDark: isDark);
+        }
+      },
     );
   }
 }

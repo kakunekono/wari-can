@@ -1,4 +1,5 @@
 import 'package:intl/intl.dart';
+import 'package:uuid/uuid.dart';
 import 'package:wari_can/models/event.dart';
 
 /// ユーティリティ関数群（メンバー名変換、金額整形など）
@@ -36,7 +37,13 @@ class Utils {
     }
   }
 
+  /// 日時を 'yyyy/MM/dd HH:mm:ss' 形式で整形して文字列として返します。
   static formatDateTime(DateTime datetime) {
     return DateFormat('yyyy/MM/dd HH:mm:ss').format(datetime);
+  }
+
+  /// 新しいUUIDを生成して返します。
+  static String generateUuid() {
+    return const Uuid().v4();
   }
 }

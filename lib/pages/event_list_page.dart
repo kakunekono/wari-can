@@ -35,12 +35,10 @@ class _EventListPageState extends State<EventListPage> {
     super.initState();
     _loadEvents();
 
-    // 🔹 匿名ログインの結果を画面に通知
+    // 🔹 ログインの結果を画面に通知
     final user = FirebaseAuth.instance.currentUser;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final message = user != null
-          ? "匿名ログイン成功 ✅ UID: ${user.uid}"
-          : "匿名ログイン失敗 ❌";
+      final message = user != null ? "ログイン成功 ✅ UID: ${user.uid}" : "ログイン失敗 ❌";
       final color = user != null ? Colors.green : Colors.red;
       ScaffoldMessenger.of(
         context,
@@ -89,6 +87,13 @@ class _EventListPageState extends State<EventListPage> {
             onPressed: () async {
               final cleared = await _logic.confirmDeleteAll(context);
               if (cleared) setState(() => _events.clear());
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'ログアウト',
+            onPressed: () async {
+              await FirebaseAuth.instance.signOut();
             },
           ),
         ],

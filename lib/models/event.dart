@@ -37,6 +37,12 @@ class Event extends TimestampedEntity {
   /// イベント名
   String name;
 
+  /// 作成者
+  final String ownerUid;
+
+  /// 共有メンバーのUID一覧
+  final List<String> sharedWith;
+
   /// 開始日（任意）
   DateTime? startDate;
 
@@ -52,6 +58,8 @@ class Event extends TimestampedEntity {
   Event({
     required this.id,
     required this.name,
+    required this.ownerUid,
+    required this.sharedWith,
     this.startDate,
     this.endDate,
     List<Member>? members,
@@ -65,6 +73,8 @@ class Event extends TimestampedEntity {
   Map<String, dynamic> toJson() => {
     'id': id,
     'name': name,
+    'ownerUid': ownerUid,
+    'sharedWith': sharedWith,
     'startDate': startDate?.toIso8601String(),
     'endDate': endDate?.toIso8601String(),
     'members': members.map((m) => m.toJson()).toList(),
@@ -76,6 +86,8 @@ class Event extends TimestampedEntity {
   static Event fromJson(Map<String, dynamic> json) => Event(
     id: json['id'],
     name: json['name'],
+    ownerUid: json['ownerUid'] ?? '',
+    sharedWith: (json['sharedWith'] as List<dynamic>?)?.cast<String>() ?? [],
     startDate: json['startDate'] != null
         ? DateTime.tryParse(json['startDate'])
         : null,
@@ -102,6 +114,8 @@ extension EventCopy on Event {
   Event copyWith({
     String? id,
     String? name,
+    String? ownerUid,
+    List<String>? sharedWith,
     DateTime? startDate,
     DateTime? endDate,
     List<Member>? members,
@@ -112,6 +126,8 @@ extension EventCopy on Event {
     return Event(
       id: id ?? this.id,
       name: name ?? this.name,
+      ownerUid: ownerUid ?? this.ownerUid,
+      sharedWith: sharedWith ?? this.sharedWith,
       startDate: startDate ?? this.startDate,
       endDate: endDate ?? this.endDate,
       members: members ?? this.members,

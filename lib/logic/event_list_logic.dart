@@ -1,8 +1,10 @@
 import 'dart:convert';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:wari_can/utils/utils.dart';
 
 import '../models/event.dart';
 import '../pages/event_detail_page.dart';
@@ -13,22 +15,46 @@ import '../utils/event_json_utils.dart';
 class EventListLogic {
   final _uuid = const Uuid();
 
-  /// ローカルストレージからイベント一覧を読み込む。
+  /// Firestoreから、ログインユーザーがアクセス可能なイベント一覧を読み込む。
   Future<List<Event>> loadEvents() async {
-    final prefs = await SharedPreferences.getInstance();
-    final keys = prefs.getKeys().where((k) => k.startsWith('event_')).toList();
-    final events = <Event>[];
-
-    for (final key in keys) {
-      final jsonString = prefs.getString(key);
-      if (jsonString != null) {
-        final decoded = jsonDecode(jsonString);
-        events.add(Event.fromJson(decoded));
-      }
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      throw Exception('ログインしていません');
     }
 
-    events.sort((a, b) => a.name.compareTo(b.name));
-    return events;
+    final events = <Event>[];
+
+    try {
+      // 🔹 自分が作成したイベント
+      final ownerSnapshot = await FirebaseFirestore.instance
+          .collection('events')
+          .where('ownerUid', isEqualTo: uid)
+          .get();
+
+      events.addAll(
+        ownerSnapshot.docs.map((doc) => Event.fromJson(doc.data())),
+      );
+
+      // 🔹 自分が共有されているイベント
+      final sharedSnapshot = await FirebaseFirestore.instance
+          .collection('events')
+          .where('sharedWith', arrayContains: uid)
+          .get();
+
+      for (final doc in sharedSnapshot.docs) {
+        final event = Event.fromJson(doc.data());
+        // 重複チェック（ownerとshared両方に含まれる場合）
+        if (!events.any((e) => e.id == event.id)) {
+          events.add(event);
+        }
+      }
+
+      events.sort((a, b) => a.name.compareTo(b.name));
+      return events;
+    } catch (e) {
+      debugPrint('Firestoreイベント取得失敗: $e');
+      return [];
+    }
   }
 
   /// イベントをローカルストレージに保存する。
@@ -51,15 +77,46 @@ class EventListLogic {
     }
 
     final timestamps = TimestampedEntity.newTimestamps();
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      throw Exception('ログインユーザーが見つかりません');
+    }
+
     final newEvent = Event(
-      id: _uuid.v4(),
+      id: Utils.generateUuid(),
       name: trimmed,
+      ownerUid: uid,
+      sharedWith: [uid],
       createAt: timestamps['createAt']!,
       updateAt: timestamps['updateAt']!,
     );
 
-    await saveEvent(newEvent);
-    return newEvent;
+    try {
+      // 🔹 Firestore に保存
+      await FirebaseFirestore.instance
+          .collection("events")
+          .doc(newEvent.id)
+          .set(newEvent.toJson());
+
+      // 🔹 SharedPreferences に保存
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        'event_${newEvent.id}',
+        jsonEncode(newEvent.toJson()),
+      );
+
+      debugPrint("イベント作成完了: ${newEvent.name}");
+      return newEvent;
+    } catch (e) {
+      debugPrint("イベント保存失敗: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("イベントの保存に失敗しました: $e"),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return null;
+    }
   }
 
   /// イベントを削除する（ローカル + Firestore）。
@@ -202,23 +259,52 @@ class EventListLogic {
     await openEventDetail(context, newEvent);
   }
 
-  /// イベント詳細ページを開き、Firestoreから最新データを取得して更新。
+  /// イベント詳細ページを開き、Firestoreから最新データを取得してローカルに保存する。
   Future<void> openEventDetail(BuildContext context, Event event) async {
+    // イベント詳細ページを開く（戻り値を待つ）
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => EventDetailPage(event: event)),
     );
 
-    final snapshot = await FirebaseFirestore.instance
-        .collection("events")
-        .doc(event.id)
-        .get();
-    if (snapshot.exists) {
-      final updatedEvent = Event.fromJson(snapshot.data()!);
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) throw Exception('ユーザーが未ログインです');
+
+      // Firestore からイベントを取得
+      final snapshot = await FirebaseFirestore.instance
+          .collection("events")
+          .doc(event.id)
+          .get();
+
+      if (!snapshot.exists || snapshot.data() == null) {
+        throw Exception('イベントが存在しません');
+      }
+
+      final data = snapshot.data()!;
+      final updatedEvent = Event.fromJson(data);
+
+      // アクセス権の確認（owner または sharedWith に含まれているか）
+      final ownerUid = data['ownerUid'] as String?;
+      final sharedWith = List<String>.from(data['sharedWith'] ?? []);
+
+      if (ownerUid != uid && !sharedWith.contains(uid)) {
+        throw Exception('このイベントにアクセスする権限がありません');
+      }
+
+      // ローカルに保存（SharedPreferences）
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(
         'event_${updatedEvent.id}',
         jsonEncode(updatedEvent.toJson()),
+      );
+    } catch (e) {
+      debugPrint('イベント取得エラー: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('イベントの読み込みに失敗しました: $e'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
