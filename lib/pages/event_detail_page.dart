@@ -4,21 +4,10 @@ import 'package:wari_can/utils/firestore_helper.dart';
 import '../models/event.dart';
 import '../utils/event_json_utils.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import 'package:wari_can/utils/utils.dart';
-
-String formatAmount(num value) {
-  if (value % 1 == 0) {
-    // 整数なら小数なしで表示
-    return NumberFormat('#,###').format(value);
-  } else {
-    // 小数がある場合のみ小数2桁表示
-    return NumberFormat('#,###.00').format(value);
-  }
-}
 
 class EventDetailPage extends StatefulWidget {
   final Event event;
@@ -180,7 +169,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
       final showParticipants = participants.length < allMembers.length;
 
       // 明細本体
-      buffer.writeln("・${e.item}（${formatAmount(e.amount)}円）");
+      buffer.writeln("・${e.item}（${Utils.formatAmount(e.amount)}円）");
 
       // 負担額を出力（shares がある場合のみ）
       if (e.shares.isNotEmpty) {
@@ -189,13 +178,13 @@ class _EventDetailPageState extends State<EventDetailPage> {
           e.shares.forEach((memberId, amount) {
             if (amount > 0) {
               buffer.writeln(
-                "    ${Utils.memberName(memberId, _event.members)} -> ${formatAmount(amount)}円",
+                "    ${Utils.memberName(memberId, _event.members)} -> ${Utils.formatAmount(amount)}円",
               );
             }
           });
         } else {
           buffer.writeln(
-            "  負担額:${formatAmount(e.amount / allMembers.length)}円",
+            "  負担額:${Utils.formatAmount(e.amount / allMembers.length)}円",
           );
         }
       }
@@ -205,7 +194,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
     buffer.writeln("💵 メンバーごとの支払合計（単純集計）:");
     for (final e in paidTotals.entries) {
       buffer.writeln(
-        "・${Utils.memberName(e.key, _event.members)}: ${formatAmount(e.value)}円",
+        "・${Utils.memberName(e.key, _event.members)}: ${Utils.formatAmount(e.value)}円",
       );
     }
 
@@ -213,7 +202,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
     buffer.writeln("💳 メンバーごとの負担合計:");
     for (final e in memberShareTotals.entries) {
       buffer.writeln(
-        "・${Utils.memberName(e.key, _event.members)}: ${formatAmount(e.value)}円",
+        "・${Utils.memberName(e.key, _event.members)}: ${Utils.formatAmount(e.value)}円",
       );
     }
 
@@ -222,7 +211,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
     for (final e in totals.entries) {
       final sign = e.value >= 0 ? '+' : '';
       buffer.writeln(
-        "・${Utils.memberName(e.key, _event.members)}: $sign${formatAmount(e.value)}円",
+        "・${Utils.memberName(e.key, _event.members)}: $sign${Utils.formatAmount(e.value)}円",
       );
     }
 
@@ -560,7 +549,9 @@ class _EventDetailPageState extends State<EventDetailPage> {
             receiver['id'] as String,
             members,
           );
-          result.add("$payerName → $receiverName に ${formatAmount(pay)}円");
+          result.add(
+            "$payerName → $receiverName に ${Utils.formatAmount(pay)}円",
+          );
           amount -= pay;
           receiver['amount'] = recvAmount - pay;
           if (amount <= 0) break;
@@ -729,15 +720,15 @@ class _EventDetailPageState extends State<EventDetailPage> {
                           "支払者: ${Utils.memberName(e.payer, _event.members)}",
                           if (e.payDate != null && e.payDate!.isNotEmpty)
                             "支払日: ${e.payDate}",
-                          "支払金額: ${formatAmount(e.amount)}円",
+                          "支払金額: ${Utils.formatAmount(e.amount)}円",
                           "負担金額:",
                           if (showParticipants) ...[
                             for (final m in e.shares.entries) ...[
                               if (m.value > 0)
-                                "  ${Utils.memberName(m.key, _event.members)} -> ${formatAmount(m.value)}円",
+                                "  ${Utils.memberName(m.key, _event.members)} -> ${Utils.formatAmount(m.value)}円",
                             ],
                           ] else ...[
-                            " ${formatAmount(e.amount / participantIds.length)}円",
+                            " ${Utils.formatAmount(e.amount / participantIds.length)}円",
                           ],
                         ].join('\n'),
                       ),
@@ -770,7 +761,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
               ),
               ...paidTotals.entries.map(
                 (e) => Text(
-                  "${Utils.memberName(e.key, _event.members)}: ${formatAmount(e.value)}円",
+                  "${Utils.memberName(e.key, _event.members)}: ${Utils.formatAmount(e.value)}円",
                   style: const TextStyle(fontSize: 16),
                 ),
               ),
@@ -782,7 +773,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
               ),
               ...memberShareTotals.entries.map(
                 (e) => Text(
-                  "${Utils.memberName(e.key, _event.members)}: ${formatAmount(e.value)}円",
+                  "${Utils.memberName(e.key, _event.members)}: ${Utils.formatAmount(e.value)}円",
                   style: const TextStyle(fontSize: 16),
                 ),
               ),
@@ -803,7 +794,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
                           : Theme.of(context).textTheme.bodyMedium?.color);
                 final sign = e.value >= 0 ? '+' : '';
                 return Text(
-                  "${Utils.memberName(e.key, _event.members)}: $sign${formatAmount(e.value)}円",
+                  "${Utils.memberName(e.key, _event.members)}: $sign${Utils.formatAmount(e.value)}円",
                   style: TextStyle(color: color),
                 );
               }),
@@ -1040,7 +1031,7 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
             ),
             // 1行目：合計表示
             Text(
-              "合計: ${formatAmount(subtotal)}円 / 総額: ${formatAmount(total)}円 / 過不足: ${formatAmount(diff)}円",
+              "合計: ${Utils.formatAmount(subtotal)}円 / 総額: ${Utils.formatAmount(total)}円 / 過不足: ${Utils.formatAmount(diff)}円",
               style: TextStyle(
                 color: diff == 0 ? Colors.green : Colors.red,
                 fontWeight: FontWeight.bold,
