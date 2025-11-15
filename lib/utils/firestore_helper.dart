@@ -13,7 +13,8 @@ Future<void> saveEventToFirestore(Event event) async {
       endDate: event.endDate,
       members: event.members,
       details: event.details,
-      uploadedAt: DateTime.now(),
+      createAt: event.createAt,
+      updateAt: DateTime.now(),
     );
 
     await FirebaseFirestore.instance

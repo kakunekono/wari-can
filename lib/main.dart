@@ -260,17 +260,21 @@ class _EventListPageState extends State<EventListPage> {
 
     if (result == null || result.isEmpty) return;
 
-    // 元イベントのメンバーをコピーして新しいイベントを作成
-    final newEvent = Event(
-      id: Uuid().v4().toString(),
+    final now = DateTime.now();
+
+    final newEvent = e.copyWith(
+      id: Uuid().v4(),
       name: result,
-      members: e.members.map((m) => Member(id: m.id, name: m.name)).toList(),
-      details: [],
+      members: e.members
+          .map((m) => m.copyWith(id: Uuid().v4(), createAt: now, updateAt: now))
+          .toList(),
+      details: [], // Expenseも複製したい場合はここで map する
+      createAt: now,
+      updateAt: now,
     );
 
     setState(() => _events.add(newEvent));
 
-    // 作成成功メッセージ
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text("「${e.name}」のメンバーをコピーして新規イベントを作成しました"),
@@ -278,13 +282,11 @@ class _EventListPageState extends State<EventListPage> {
       ),
     );
 
-    // 新規イベントの明細ページへ遷移
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => EventDetailPage(event: newEvent)),
     );
 
-    // 明細ページから戻ってきたらリストを更新
     setState(() {});
   }
 
@@ -316,19 +318,38 @@ class _EventListPageState extends State<EventListPage> {
     setState(() => _events.removeAt(index));
   }
 
-  void _addEvent() async {
+  Future<void> _addEvent() async {
     final name = _controller.text.trim();
-    if (name.isEmpty) return;
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("イベント名を入力してください"),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
 
-    final newEvent = Event(id: _uuid.v4(), name: name);
+    final timestamps = TimestampedEntity.newTimestamps();
+
+    final newEvent = Event(
+      id: _uuid.v4(),
+      name: name,
+      createAt: timestamps['createAt']!,
+      updateAt: timestamps['updateAt']!,
+    );
+
     await _saveEvent(newEvent);
     _controller.clear();
     _loadEvents();
-    // 新しいイベントの明細ページへ遷移
+
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => EventDetailPage(event: newEvent)),
     );
+
+    // 戻ってきたらリストを更新（必要なら _loadEvents() 再呼び出し）
+    setState(() {});
   }
 
   void _openEventDetail(Event event) async {
@@ -355,7 +376,6 @@ class _EventListPageState extends State<EventListPage> {
     }
   }
 
-  // 🔹 イベント名の編集処理
   Future<void> _editEventName(Event event) async {
     final controller = TextEditingController(text: event.name);
     final newName = await showDialog<String>(
@@ -382,18 +402,26 @@ class _EventListPageState extends State<EventListPage> {
       ),
     );
 
-    if (newName != null && newName.isNotEmpty && newName != event.name) {
-      final updated = Event(
-        id: event.id,
-        name: newName,
-        startDate: event.startDate,
-        endDate: event.endDate,
-        members: event.members,
-        details: event.details,
+    if (newName != null && newName.trim().isNotEmpty && newName != event.name) {
+      final updated = event.copyWith(
+        name: newName.trim(),
+        updateAt: DateTime.now(),
       );
-      await _saveEvent(updated);
-      await saveEventToFirestore(updated);
-      _loadEvents();
+      try {
+        await _saveEvent(updated);
+        await saveEventToFirestore(updated);
+        _loadEvents();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("イベント名を「${newName}」に変更しました"),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("保存に失敗しました: $e"), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
@@ -656,7 +684,7 @@ Future<void> uploadEventToCloud(
   }
 
   // 現在時刻を追加（ISO8601文字列）
-  eventData["uploadedAt"] = DateTime.now().toIso8601String();
+  eventData["updateAt"] = DateTime.now().toIso8601String();
 
   try {
     await FirebaseFirestore.instance

@@ -82,6 +82,8 @@ class EventJsonUtils {
       final oldEvent = Event.fromJson(jsonMap);
 
       // 新しいIDで複製
+      final timestamps = TimestampedEntity.newTimestamps();
+
       final newEvent = Event(
         id: _uuid.v4(),
         name: oldEvent.name,
@@ -89,6 +91,8 @@ class EventJsonUtils {
         endDate: oldEvent.endDate,
         members: oldEvent.members,
         details: oldEvent.details,
+        createAt: timestamps['createAt']!,
+        updateAt: timestamps['updateAt']!,
       );
 
       final prefs = await SharedPreferences.getInstance();
