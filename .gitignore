@@ -51,3 +51,5 @@ serviceAccountKey.json
 *.secret.json
 .env
 .env.*
+
+*.txt

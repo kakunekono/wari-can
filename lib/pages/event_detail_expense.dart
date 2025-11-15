@@ -6,6 +6,8 @@ import 'package:wari_can/utils/utils.dart';
 import 'event_detail_logic.dart';
 
 /// 支出明細の追加・編集・削除、および入力ダイアログの表示を行うロジック群。
+///
+/// 編集はローカルで完結し、保存時にのみ Firebase へ同期されます。
 
 /// 支出明細を追加または編集します。
 ///
@@ -65,7 +67,7 @@ Future<void> addExpense(
 
   final sortedDetails = sortDetails(updatedDetails, event.members);
   final updated = event.copyWith(details: sortedDetails, updateAt: now);
-  onUpdate(updated);
+  onUpdate(updated); // ローカル保存 + Firebase同期（外部で処理）
 }
 
 /// 支出明細を削除します。
@@ -102,7 +104,7 @@ Future<void> deleteExpense(
   final sortedDetails = sortDetails(updatedDetails, event.members);
   final now = DateTime.now();
   final updated = event.copyWith(details: sortedDetails, updateAt: now);
-  onUpdate(updated);
+  onUpdate(updated); // ローカル保存 + Firebase同期（外部で処理）
 
   ScaffoldMessenger.of(
     context,

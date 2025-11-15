@@ -261,21 +261,18 @@ class EventListLogic {
 
   /// イベント詳細ページを開き、Firestoreから最新データを取得してローカルに保存する。
   Future<void> openEventDetail(BuildContext context, Event event) async {
-    // イベント詳細ページを開く（戻り値を待つ）
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => EventDetailPage(event: event)),
-    );
-
     try {
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid == null) throw Exception('ユーザーが未ログインです');
 
-      // Firestore からイベントを取得
-      final snapshot = await FirebaseFirestore.instance
+      final docRef = FirebaseFirestore.instance
           .collection("events")
-          .doc(event.id)
-          .get();
+          .doc(event.id);
+
+      // 🔹 Firestoreから最新データを取得（キャッシュ無視）
+      final snapshot = await docRef.get(
+        const GetOptions(source: Source.server),
+      );
 
       if (!snapshot.exists || snapshot.data() == null) {
         throw Exception('イベントが存在しません');
@@ -284,19 +281,24 @@ class EventListLogic {
       final data = snapshot.data()!;
       final updatedEvent = Event.fromJson(data);
 
-      // アクセス権の確認（owner または sharedWith に含まれているか）
+      // 🔹 アクセス権の確認
       final ownerUid = data['ownerUid'] as String?;
       final sharedWith = List<String>.from(data['sharedWith'] ?? []);
-
       if (ownerUid != uid && !sharedWith.contains(uid)) {
         throw Exception('このイベントにアクセスする権限がありません');
       }
 
-      // ローカルに保存（SharedPreferences）
+      // 🔹 ローカルに保存
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(
         'event_${updatedEvent.id}',
         jsonEncode(updatedEvent.toJson()),
+      );
+
+      // 🔹 最新データで画面を開く
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => EventDetailPage(event: updatedEvent)),
       );
     } catch (e) {
       debugPrint('イベント取得エラー: $e');

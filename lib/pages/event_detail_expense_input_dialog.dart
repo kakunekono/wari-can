@@ -5,6 +5,7 @@ import 'package:wari_can/models/event.dart';
 ///
 /// 新規追加または既存明細の編集に使用されます。
 /// メンバーごとの負担額を均等割または手動で入力できます。
+/// 保存時に Map を返し、外部でローカル保存や Firebase 連携を行う設計です。
 class ExpenseInputDialog extends StatefulWidget {
   /// メンバー一覧
   final List<Member> members;
@@ -61,7 +62,7 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
     }
   }
 
-  /// 総額（合計金額）を取得します。
+  /// 合計金額を取得します。
   int get total => int.tryParse(_totalController.text) ?? 0;
 
   /// 各メンバーの負担額合計（subtotal）を取得します。
@@ -69,7 +70,7 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
       .map((c) => int.tryParse(c.text) ?? 0)
       .fold(0, (a, b) => a + b);
 
-  /// メンバー数に応じて均等割を適用し、端数は先頭に加算します。
+  /// 均等割を適用し、端数は先頭に加算します。
   void _applyEqualSplit() {
     if (widget.members.isEmpty) return;
     final per = (total / widget.members.length).floor();
@@ -107,19 +108,18 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
             ),
             const SizedBox(height: 8),
             TextField(
-              controller: _payDateController,
-              decoration: const InputDecoration(labelText: "支払日（任意）"),
-            ),
-            const SizedBox(height: 8),
-            TextField(
               controller: _totalController,
               decoration: const InputDecoration(labelText: "合計金額"),
               keyboardType: TextInputType.number,
-              onChanged: (_) => _applyEqualSplit(),
+              onChanged: (_) {
+                if (_mode == "equal") {
+                  _applyEqualSplit();
+                }
+              },
             ),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
-              value: _payerId,
+              initialValue: _payerId,
               items: widget.members
                   .map(
                     (m) => DropdownMenuItem(value: m.id, child: Text(m.name)),
@@ -129,10 +129,26 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
               decoration: const InputDecoration(labelText: "支払者"),
             ),
             const SizedBox(height: 8),
+            TextFormField(
+              controller: _payDateController,
+              readOnly: true,
+              decoration: const InputDecoration(labelText: "支払日（任意）"),
+              onTap: () async {
+                final picked = await showDatePicker(
+                  context: context,
+                  initialDate: DateTime.now(),
+                  firstDate: DateTime(2020),
+                  lastDate: DateTime(2100),
+                );
+                if (picked != null) {
+                  _payDateController.text =
+                      "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
+                }
+              },
+            ),
+            const SizedBox(height: 8),
             Row(
               children: [
-                const Text("分割モード:"),
-                const SizedBox(width: 8),
                 ChoiceChip(
                   label: const Text("手動"),
                   selected: _mode == "manual",

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 import 'package:wari_can/models/event.dart';
@@ -45,5 +46,14 @@ class Utils {
   /// 新しいUUIDを生成して返します。
   static String generateUuid() {
     return const Uuid().v4();
+  }
+
+  static String generateInviteUrl(String eventId) {
+    // GitHub Pages のルートが /wari-can/ の場合
+    final origin = Uri.base.origin;
+    final basePath = Uri.base.pathSegments.isNotEmpty
+        ? '/${Uri.base.pathSegments.first}/'
+        : '/';
+    return '$origin$basePath?eventId=$eventId';
   }
 }

@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:wari_can/utils/firestore_helper.dart';
 import '../models/event.dart';
 import '../utils/utils.dart';
 import '../logic/event_list_logic.dart';
 
 /// イベント一覧ページ。
-/// イベントの表示と、ユーザー操作に応じたロジック呼び出しを行う。
+///
+/// ローカルに保存されたイベントを一覧表示し、追加・削除・インポート・クラウド同期などの操作を提供します。
+/// 編集はローカルで完結し、保存時にのみ Firebase へ同期されます。
 class EventListPage extends StatefulWidget {
   /// テーマ切り替えコールバック。
   final VoidCallback onToggleTheme;
@@ -13,7 +17,6 @@ class EventListPage extends StatefulWidget {
   /// 現在のテーマがダークかどうか。
   final bool isDark;
 
-  /// コンストラクタ。
   const EventListPage({
     super.key,
     required this.onToggleTheme,
@@ -24,18 +27,19 @@ class EventListPage extends StatefulWidget {
   State<EventListPage> createState() => _EventListPageState();
 }
 
-/// イベント一覧ページのステート。
 class _EventListPageState extends State<EventListPage> {
   final _controller = TextEditingController();
   final _logic = EventListLogic();
   List<Event> _events = [];
+  bool _initialized = false;
 
   @override
   void initState() {
     super.initState();
+    _initializeOnce(); // ← 初期化時に一度だけ実行
     _loadEvents();
 
-    // 🔹 ログインの結果を画面に通知
+    // ログイン状態を通知（Web共有リンク用）
     final user = FirebaseAuth.instance.currentUser;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final message = user != null ? "ログイン成功 ✅ UID: ${user.uid}" : "ログイン失敗 ❌";
@@ -50,6 +54,47 @@ class _EventListPageState extends State<EventListPage> {
   Future<void> _loadEvents() async {
     final loaded = await _logic.loadEvents();
     setState(() => _events = loaded);
+  }
+
+  /// Firestoreからイベント一覧を取得し、ローカルストレージを再構成する。
+  ///
+  /// 既存の SharedPreferences 上のイベントデータはすべて削除され、
+  /// Firestore 上の最新データで上書きされます。
+  Future<List<Event>> reloadEventsFromFirestore(BuildContext context) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    // 🔸 ローカルイベントキーをすべて削除
+    final keys = prefs.getKeys().where((k) => k.startsWith('event_')).toList();
+    for (final key in keys) {
+      await prefs.remove(key);
+    }
+
+    debugPrint("[EventListPage] Cleared ${keys.length} local events.");
+
+    // 🔸 Firestoreからイベント一覧を取得
+    final events = await fetchAllEventsFromFirestore(); // ← FirestoreHelper側で定義
+
+    debugPrint(
+      "[EventListPage] Fetched ${events.length} events from Firestore.",
+    );
+
+    // 🔸 ローカルに保存し直す
+    for (final e in events) {
+      await prefs.setString('event_${e.id}', e.toJson().toString());
+    }
+
+    debugPrint("[EventListPage] Re-saved events to local storage.");
+
+    // 🔸 UIに反映するために返す
+    return events;
+  }
+
+  void _initializeOnce() async {
+    if (_initialized) return;
+    _initialized = true;
+
+    final reloaded = await reloadEventsFromFirestore(context);
+    setState(() => _events = reloaded);
   }
 
   @override

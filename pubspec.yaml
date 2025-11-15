@@ -43,6 +43,8 @@ dependencies:
   firebase_auth: ^6.1.2
   google_sign_in: ^7.2.0
   google_fonts: ^6.3.2
+  qr_flutter: ^4.0.0
+  flutter_svg: ^2.0.7 # SVG対応（任意）
 
 dev_dependencies:
   flutter_test:

@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import 'package:wari_can/models/event.dart';
 
-/// メンバー追加・編集・削除に関する操作群。
+/// メンバー追加・編集・削除に関するロジック群。
 ///
 /// UIから分離されたロジックとして、イベントの状態更新をコールバックで受け取ります。
+/// 編集はローカルで完結し、保存時にのみ Firebase へ同期されます。
 
-/// メンバー追加処理。重複チェックと保存を行います。
+/// メンバー追加処理。重複チェックとローカル保存を行います。
 Future<void> addMember(
   BuildContext context,
   Event event,
@@ -36,7 +37,7 @@ Future<void> addMember(
     updateAt: now,
   );
 
-  onUpdate(updated);
+  onUpdate(updated); // ローカル保存 + Firebase同期（外部で処理）
   controller.clear();
 }
 
@@ -85,14 +86,14 @@ Future<void> deleteMember(
   final updatedMembers = event.members.where((m) => m.id != memberId).toList();
   final updated = event.copyWith(members: updatedMembers, updateAt: now);
 
-  onUpdate(updated);
+  onUpdate(updated); // ローカル保存 + Firebase同期（外部で処理）
 
   ScaffoldMessenger.of(
     context,
   ).showSnackBar(SnackBar(content: Text("「${member.name}」を削除しました")));
 }
 
-/// メンバー名編集処理。変更後は保存されます。
+/// メンバー名編集処理。変更後はローカル保存されます。
 Future<void> editMemberName(
   BuildContext context,
   Event event,
@@ -131,7 +132,7 @@ Future<void> editMemberName(
     }).toList();
 
     final updated = event.copyWith(members: updatedMembers, updateAt: now);
-    onUpdate(updated);
+    onUpdate(updated); // ローカル保存 + Firebase同期（外部で処理）
   }
 }
 

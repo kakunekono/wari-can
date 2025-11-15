@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -110,7 +112,7 @@ class _WariCanAppState extends State<WariCanApp> {
   }
 }
 
-class AuthGate extends StatelessWidget {
+class AuthGate extends StatefulWidget {
   final VoidCallback onToggleTheme;
   final bool isDark;
 
@@ -119,6 +121,55 @@ class AuthGate extends StatelessWidget {
     required this.onToggleTheme,
     required this.isDark,
   });
+
+  @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  bool _inviteHandled = false;
+  Uri? _initialUri;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadInitialUri();
+  }
+
+  Future<void> _loadInitialUri() async {
+    if (kIsWeb) {
+      final uri = Uri.base;
+      final eventId = uri.queryParameters['eventId'];
+      if (eventId != null) {
+        setState(() {
+          _initialUri = uri;
+        });
+      }
+    }
+  }
+
+  Future<void> _handleInviteIfNeeded(User user) async {
+    if (_inviteHandled || _initialUri == null) return;
+
+    final eventId = _initialUri!.queryParameters['eventId'];
+    if (eventId != null) {
+      try {
+        await FirebaseFirestore.instance
+            .collection('events')
+            .doc(eventId)
+            .update({
+              'sharedWith': FieldValue.arrayUnion([user.uid]),
+            });
+        debugPrint('イベント $eventId に共有追加: ${user.uid}');
+      } catch (e) {
+        debugPrint('共有追加失敗: $e');
+      }
+    }
+
+    setState(() {
+      _inviteHandled = true;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -131,10 +182,20 @@ class AuthGate extends StatelessWidget {
           );
         }
 
-        if (snapshot.hasData) {
-          return EventListPage(onToggleTheme: onToggleTheme, isDark: isDark);
+        final user = snapshot.data;
+        if (user != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _handleInviteIfNeeded(user);
+          });
+          return EventListPage(
+            onToggleTheme: widget.onToggleTheme,
+            isDark: widget.isDark,
+          );
         } else {
-          return LoginChoicePage(onToggleTheme: onToggleTheme, isDark: isDark);
+          return LoginChoicePage(
+            onToggleTheme: widget.onToggleTheme,
+            isDark: widget.isDark,
+          );
         }
       },
     );

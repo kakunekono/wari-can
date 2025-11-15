@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import '../models/event.dart';
 import '../utils/event_json_utils.dart';
@@ -11,9 +13,11 @@ import 'event_detail_expense.dart';
 ///
 /// メンバーの追加・編集・削除、支出明細の登録・編集・削除、
 /// 精算結果の表示、イベントの共有などを行う画面です。
+/// 編集はローカルで完結し、保存時にのみ Firebase へ同期されます。
 class EventDetailPage extends StatefulWidget {
   /// 表示対象のイベント
   final Event event;
+
   const EventDetailPage({super.key, required this.event});
 
   @override
@@ -39,7 +43,61 @@ class _EventDetailPageState extends State<EventDetailPage> {
     super.dispose();
   }
 
-  /// イベント詳細画面のUIを構築します。
+  /// イベントの状態を更新し、setStateと保存を行います。
+  void _updateEvent(Event updated) async {
+    setState(() {
+      _event = updated;
+    });
+    await saveEvent(context, _event); // ローカル保存 + Firebase同期（必要なら）
+  }
+
+  /// イベント共有リンクを表示するセクション（Web限定）
+  Widget buildShareSection(Event event, BuildContext context) {
+    if (!kIsWeb) {
+      return const Padding(
+        padding: EdgeInsets.all(16),
+        child: Text('この機能はWeb版でのみ利用可能です。', style: TextStyle(color: Colors.red)),
+      );
+    }
+
+    final inviteUrl = Utils.generateInviteUrl(event.id);
+
+    return Card(
+      margin: const EdgeInsets.all(16),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'イベント共有リンク',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            SelectableText(inviteUrl),
+            const SizedBox(height: 8),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.copy),
+              label: const Text('リンクをコピー'),
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: inviteUrl));
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(const SnackBar(content: Text('招待リンクをコピーしました')));
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 戻るときに保存確認を行う
+  Future<bool> _confirmSaveBeforePop() async {
+    final confirmed = await onWillPopConfirmSave(context, _event);
+    return confirmed;
+  }
+
   @override
   Widget build(BuildContext context) {
     final sortedDetails = List<Expense>.from(_event.details);
@@ -52,7 +110,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
       canPop: true,
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
-        final confirmed = await onWillPopConfirmSave(context, _event);
+        final confirmed = await _confirmSaveBeforePop();
         if (confirmed) Navigator.pop(context);
       },
       child: Scaffold(
@@ -61,6 +119,26 @@ class _EventDetailPageState extends State<EventDetailPage> {
           actions: [
             IconButton(
               icon: const Icon(Icons.share),
+              tooltip: 'イベントを共有',
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (_) => AlertDialog(
+                    title: const Text('イベント共有'),
+                    content: buildShareSection(_event, context),
+                    actions: [
+                      TextButton(
+                        child: const Text('閉じる'),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.share),
+              tooltip: 'テキストで共有',
               onPressed: () async {
                 final text = buildShareText(_event);
                 await Share.share(text);
@@ -68,6 +146,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
             ),
             IconButton(
               icon: const Icon(Icons.code),
+              tooltip: 'JSONエクスポート',
               onPressed: () {
                 EventJsonUtils.exportEventJson(context, _event);
               },
@@ -96,6 +175,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
                 onUpdate: _updateEvent,
               ),
               const Divider(),
+
               buildExpenseSection(context, _event, onUpdate: _updateEvent),
               const Divider(),
 
@@ -124,7 +204,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
               const Divider(),
 
               const Text(
-                'メンバーごとの支払合計精算金額',
+                'メンバーごとの精算差額',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               ...balances.entries.map((e) {
@@ -153,10 +233,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
                   icon: const Icon(Icons.arrow_back),
                   label: const Text("戻る"),
                   onPressed: () async {
-                    final allowPop = await onWillPopConfirmSave(
-                      context,
-                      _event,
-                    );
+                    final allowPop = await _confirmSaveBeforePop();
                     if (allowPop) Navigator.pop(context);
                   },
                 ),
@@ -166,13 +243,5 @@ class _EventDetailPageState extends State<EventDetailPage> {
         ),
       ),
     );
-  }
-
-  /// イベントの状態を更新し、setStateと保存を行います。
-  void _updateEvent(Event updated) async {
-    setState(() {
-      _event = updated;
-    });
-    await saveEvent(context, _event);
   }
 }

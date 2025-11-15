@@ -140,3 +140,9 @@ Future<void> uploadEventToCloud(
     ).showSnackBar(SnackBar(content: Text("アップロード失敗: $e")));
   }
 }
+
+/// Firestoreからすべてのイベントを取得する。
+Future<List<Event>> fetchAllEventsFromFirestore() async {
+  final snapshot = await FirebaseFirestore.instance.collection('events').get();
+  return snapshot.docs.map((doc) => Event.fromJson(doc.data())).toList();
+}
