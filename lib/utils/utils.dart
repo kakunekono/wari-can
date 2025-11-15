@@ -35,4 +35,8 @@ class Utils {
       return NumberFormat('#,###.00').format(value);
     }
   }
+
+  static formatDateTime(DateTime datetime) {
+    return DateFormat('yyyy/MM/dd HH:mm:ss').format(datetime);
+  }
 }

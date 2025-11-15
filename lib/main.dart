@@ -564,6 +564,8 @@ class _EventListPageState extends State<EventListPage> {
                                       'メンバー: ${e.members.map((m) => Utils.memberName(m.id, e.members)).join(",")}',
                                       '明細件数： ${e.details.length}件',
                                       '合計金額： ${Utils.formatAmount(e.details.fold(0, (sum, e) => sum + e.amount))}円',
+                                      '作成日： ${Utils.formatDateTime(e.createAt)}',
+                                      '更新日： ${Utils.formatDateTime(e.updateAt)}',
                                     ].join("\n"),
                                   ),
                                   onTap: () => _openEventDetail(e),
