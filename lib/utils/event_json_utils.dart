@@ -1,4 +1,3 @@
-// lib/utils/event_json_utils.dart
 import 'dart:convert';
 import '../models/event.dart';
 import 'package:flutter/material.dart';
@@ -7,9 +6,19 @@ import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
+/// イベントデータのJSON入出力を扱うユーティリティクラス。
+///
+/// - JSON形式でイベントを表示・コピー・共有
+/// - JSONからイベントを読み込み、IDを再採番して保存
 class EventJsonUtils {
   static final _uuid = Uuid();
 
+  /// イベントをJSON形式で表示・コピー・共有します。
+  ///
+  /// [context] はダイアログ表示に使用するBuildContext。
+  /// [event] は対象のイベントデータ。
+  ///
+  /// ダイアログにはJSON文字列が表示され、コピーや共有が可能です。
   static Future<void> exportEventJson(BuildContext context, Event event) async {
     final jsonStr = jsonEncode(event.toJson());
     await showDialog(
@@ -43,7 +52,12 @@ class EventJsonUtils {
     );
   }
 
-  // JSON取込（ID再採番）
+  /// JSON文字列からイベントを読み込み、IDを再採番して保存します。
+  ///
+  /// [context] はダイアログ表示に使用するBuildContext。
+  ///
+  /// ユーザーが貼り付けたJSONを解析し、新しいIDでイベントを生成・保存します。
+  /// 読み込みに成功すると新しい [Event] を返します。失敗時は `null` を返します。
   static Future<Event?> importEventJson(BuildContext context) async {
     final controller = TextEditingController();
 
@@ -78,10 +92,8 @@ class EventJsonUtils {
 
     try {
       final jsonMap = jsonDecode(controller.text) as Map<String, dynamic>;
-      // Eventオブジェクト生成
       final oldEvent = Event.fromJson(jsonMap);
 
-      // 新しいIDで複製
       final timestamps = TimestampedEntity.newTimestamps();
 
       final newEvent = Event(

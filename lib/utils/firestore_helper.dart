@@ -1,12 +1,14 @@
-// lib/utils/firestore_helper.dart
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../models/event.dart'; // Eventモデルのパスに応じて調整
+import '../models/event.dart';
 
-/// イベントをFirestoreに保存（merge付き）
+/// 指定されたイベントをFirestoreに保存します（merge付き）。
+///
+/// [event] は保存対象のイベント。`updateAt` は現在時刻に更新されます。
+/// Firestoreの "events" コレクションに保存されます。
 Future<void> saveEventToFirestore(Event event) async {
   try {
     final updated = Event(
@@ -30,7 +32,10 @@ Future<void> saveEventToFirestore(Event event) async {
   }
 }
 
-/// Firestoreからイベントを取得（存在しない場合はnull）
+/// Firestoreから指定IDのイベントを取得します。
+///
+/// [eventId] は取得対象のイベントID。
+/// 該当するイベントが存在すれば [Event] を返し、存在しない場合は `null` を返します。
 Future<Event?> fetchEventFromFirestore(String eventId) async {
   try {
     final snapshot = await FirebaseFirestore.instance
@@ -50,7 +55,9 @@ Future<Event?> fetchEventFromFirestore(String eventId) async {
   return null;
 }
 
-/// イベントをFirestoreから削除
+/// Firestoreから指定IDのイベントを削除します。
+///
+/// [eventId] は削除対象のイベントID。
 Future<void> deleteEventFromFirestore(String eventId) async {
   try {
     await FirebaseFirestore.instance.collection("events").doc(eventId).delete();
@@ -60,9 +67,10 @@ Future<void> deleteEventFromFirestore(String eventId) async {
   }
 }
 
-// ----------------------
-// Firestore アップロード関数
-// ----------------------
+/// ローカルに保存されたすべてのイベントをFirestoreに一括アップロードします。
+///
+/// [context] はSnackBar表示に使用されます。
+/// SharedPreferencesに保存された "event_" プレフィックス付きキーを対象にアップロードします。
 Future<void> uploadLocalEventsToFirestore(BuildContext context) async {
   final prefs = await SharedPreferences.getInstance();
   final keys = prefs.getKeys().where((k) => k.startsWith('event_')).toList();
@@ -92,6 +100,10 @@ Future<void> uploadLocalEventsToFirestore(BuildContext context) async {
   }
 }
 
+/// 単一のイベントデータをFirestoreにアップロードします。
+///
+/// [context] はSnackBar表示に使用されます。
+/// [eventData] はJSON形式のイベントデータ。`updateAt` は現在時刻に更新されます。
 Future<void> uploadEventToCloud(
   BuildContext context,
   Map<String, dynamic> eventData,
@@ -102,7 +114,6 @@ Future<void> uploadEventToCloud(
     return;
   }
 
-  // 現在時刻を追加（ISO8601文字列）
   eventData["updateAt"] = DateTime.now().toIso8601String();
 
   try {

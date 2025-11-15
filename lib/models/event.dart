@@ -1,24 +1,27 @@
-// ----------------------
-// データ構造
-// ----------------------
+/// タイムスタンプ付きエンティティの抽象クラス。
+/// createAt（作成日時）と updateAt（更新日時）を共通で持つ。
 abstract class TimestampedEntity {
+  /// 作成日時
   final DateTime createAt;
+
+  /// 更新日時
   final DateTime updateAt;
 
   const TimestampedEntity({required this.createAt, required this.updateAt});
 
+  /// タイムスタンプをJSON形式に変換する。
   Map<String, dynamic> toTimestampJson() => {
     'createAt': createAt.toIso8601String(),
     'updateAt': updateAt.toIso8601String(),
   };
 
-  /// 新規作成用のタイムスタンプを生成
+  /// 新規作成用のタイムスタンプを生成する。
   static Map<String, DateTime> newTimestamps() {
     final now = DateTime.now();
     return {'createAt': now, 'updateAt': now};
   }
 
-  /// 更新用のタイムスタンプを生成
+  /// 更新時のタイムスタンプを生成する。
   static Map<String, DateTime> updatedTimestamp({
     required DateTime originalCreateAt,
   }) {
@@ -26,39 +29,24 @@ abstract class TimestampedEntity {
   }
 }
 
-// abstract class TimestampedEntity {
-//   final DateTime createAt;
-//   final DateTime updateAt;
-
-//   TimestampedEntity({DateTime? createAt, DateTime? updateAt})
-//     : createAt = createAt ?? DateTime.now(),
-//       updateAt = updateAt ?? DateTime.now();
-
-//   Map<String, dynamic> toTimestampJson() => {
-//     'createAt': createAt.toIso8601String(),
-//     'updateAt': updateAt.toIso8601String(),
-//   };
-
-//   /// 新規作成用のタイムスタンプを生成
-//   static Map<String, DateTime> newTimestamps() {
-//     final now = DateTime.now();
-//     return {'createAt': now, 'updateAt': now};
-//   }
-
-//   /// 更新用のタイムスタンプを生成
-//   static Map<String, DateTime> updatedTimestamp({
-//     required DateTime originalCreateAt,
-//   }) {
-//     return {'createAt': originalCreateAt, 'updateAt': DateTime.now()};
-//   }
-// }
-
+/// イベントデータを表すモデル。
 class Event extends TimestampedEntity {
+  /// イベントID（UUID）
   final String id;
+
+  /// イベント名
   String name;
+
+  /// 開始日（任意）
   DateTime? startDate;
+
+  /// 終了日（任意）
   DateTime? endDate;
-  List<Member> members; // ← 文字列ではなく Member 型に
+
+  /// 参加メンバー一覧
+  List<Member> members;
+
+  /// 支出明細一覧
   List<Expense> details;
 
   Event({
@@ -73,6 +61,7 @@ class Event extends TimestampedEntity {
   }) : members = members ?? [],
        details = details ?? [];
 
+  /// JSON形式に変換
   Map<String, dynamic> toJson() => {
     'id': id,
     'name': name,
@@ -83,6 +72,7 @@ class Event extends TimestampedEntity {
     ...toTimestampJson(),
   };
 
+  /// JSONからEventを生成
   static Event fromJson(Map<String, dynamic> json) => Event(
     id: json['id'],
     name: json['name'],
@@ -107,6 +97,7 @@ class Event extends TimestampedEntity {
   );
 }
 
+/// Eventのイミュータブルなコピーを作成するための拡張。
 extension EventCopy on Event {
   Event copyWith({
     String? id,
@@ -131,8 +122,12 @@ extension EventCopy on Event {
   }
 }
 
+/// メンバー情報を表すモデル。
 class Member extends TimestampedEntity {
+  /// メンバーID（UUID）
   final String id;
+
+  /// メンバー名
   String name;
 
   Member({
@@ -142,12 +137,14 @@ class Member extends TimestampedEntity {
     required super.updateAt,
   });
 
+  /// JSON形式に変換
   Map<String, dynamic> toJson() => {
     'id': id,
     'name': name,
     ...toTimestampJson(),
   };
 
+  /// JSONからMemberを生成
   static Member fromJson(Map<String, dynamic> json) => Member(
     id: json['id'],
     name: json['name'],
@@ -156,6 +153,7 @@ class Member extends TimestampedEntity {
   );
 }
 
+/// Memberのイミュータブルなコピーを作成するための拡張。
 extension MemberCopy on Member {
   Member copyWith({
     String? id,
@@ -172,14 +170,30 @@ extension MemberCopy on Member {
   }
 }
 
+/// 支出明細を表すモデル。
 class Expense extends TimestampedEntity {
+  /// 明細ID（UUID）
   final String id;
+
+  /// 支出項目名
   String item;
+
+  /// 支払者のメンバーID
   String payer;
+
+  /// 金額（円）
   int amount;
+
+  /// 参加者のメンバーID一覧
   List<String> participants;
+
+  /// 各メンバーの負担額（memberId → 金額）
   Map<String, int> shares;
+
+  /// 分割モード（"manual" または "equal"）
   String mode;
+
+  /// 支払日（任意、文字列）
   String? payDate;
 
   Expense({
@@ -195,6 +209,7 @@ class Expense extends TimestampedEntity {
     required super.updateAt,
   });
 
+  /// JSON形式に変換
   Map<String, dynamic> toJson() => {
     'id': id,
     'item': item,
@@ -207,6 +222,7 @@ class Expense extends TimestampedEntity {
     ...toTimestampJson(),
   };
 
+  /// JSONからExpenseを生成
   static Expense fromJson(Map<String, dynamic> json) => Expense(
     id: json['id'],
     item: json['item'],
@@ -221,6 +237,7 @@ class Expense extends TimestampedEntity {
   );
 }
 
+/// Expenseのイミュータブルなコピーを作成するための拡張。
 extension ExpenseCopy on Expense {
   Expense copyWith({
     String? id,
