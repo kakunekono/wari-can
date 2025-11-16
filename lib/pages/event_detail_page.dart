@@ -62,31 +62,37 @@ class _EventDetailPageState extends State<EventDetailPage> {
 
     final inviteUrl = Utils.generateInviteUrl(event.id);
 
-    return Card(
-      margin: const EdgeInsets.all(16),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'イベント共有リンク',
-              style: TextStyle(fontWeight: FontWeight.bold),
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(
+          maxWidth: 400, // 必要に応じて調整
+        ),
+        child: Card(
+          margin: const EdgeInsets.all(16),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min, // ← これが重要！
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'イベント共有リンク',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                SelectableText(inviteUrl),
+                const SizedBox(height: 8),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.copy),
+                  label: const Text('リンクをコピー'),
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: inviteUrl));
+                    Navigator.pop(context, 'copied');
+                  },
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            SelectableText(inviteUrl),
-            const SizedBox(height: 8),
-            ElevatedButton.icon(
-              icon: const Icon(Icons.copy),
-              label: const Text('リンクをコピー'),
-              onPressed: () {
-                Clipboard.setData(ClipboardData(text: inviteUrl));
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(const SnackBar(content: Text('招待リンクをコピーしました')));
-              },
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -120,12 +126,20 @@ class _EventDetailPageState extends State<EventDetailPage> {
             IconButton(
               icon: const Icon(Icons.link),
               tooltip: 'イベントを共有',
-              onPressed: () {
-                showDialog(
+              onPressed: () async {
+                final result = await showDialog<String>(
                   context: context,
                   builder: (_) => AlertDialog(
                     title: const Text('イベント共有'),
-                    content: buildShareSection(_event, context),
+                    content: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        maxWidth: 400, // 横幅制限（任意）
+                        maxHeight: 300, // 高さ制限（必要に応じて調整）
+                      ),
+                      child: SingleChildScrollView(
+                        child: buildShareSection(_event, context),
+                      ),
+                    ),
                     actions: [
                       TextButton(
                         child: const Text('閉じる'),
@@ -134,6 +148,12 @@ class _EventDetailPageState extends State<EventDetailPage> {
                     ],
                   ),
                 );
+
+                if (result == 'copied') {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('招待リンクをコピーしました')),
+                  );
+                }
               },
             ),
             IconButton(
