@@ -49,11 +49,25 @@ class Utils {
   }
 
   static String generateInviteUrl(String eventId) {
-    // GitHub Pages のルートが /wari-can/ の場合
-    final origin = Uri.base.origin;
-    final basePath = Uri.base.pathSegments.isNotEmpty
-        ? '/${Uri.base.pathSegments.first}/'
-        : '/';
-    return '$origin$basePath?eventId=$eventId';
+    if (!kIsWeb) return '';
+
+    final uri = Uri.base;
+    final scheme = uri.scheme; // ← スキーマ (http / https)
+    final host = uri.host;
+    final port = uri.hasPort ? uri.port : null;
+    final isLocal = host == 'localhost';
+
+    final param = 'eventId=$eventId';
+
+    if (isLocal) {
+      final portPart = port != null ? ':$port' : '';
+      return '$scheme://$host$portPart/?$param';
+    } else {
+      final pathSegment = uri.pathSegments.isNotEmpty
+          ? uri.pathSegments.first
+          : '';
+      final basePath = pathSegment.isNotEmpty ? '/$pathSegment' : '';
+      return '$scheme://$host$basePath/?$param';
+    }
   }
 }
