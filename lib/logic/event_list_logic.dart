@@ -200,7 +200,7 @@ class EventListLogic {
     }
   }
 
-  /// イベントをコピーして新規作成する。
+  /// メンバーをコピーしてイベントを新規作成する。
   Future<void> copyEvent(
     BuildContext context,
     Event original,
@@ -210,7 +210,7 @@ class EventListLogic {
     final result = await showDialog<String>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text("イベントをコピーして追加"),
+        title: const Text("メンバーをコピーしてイベントを追加"),
         content: TextField(
           controller: controller,
           decoration: const InputDecoration(labelText: "新しいイベント名"),

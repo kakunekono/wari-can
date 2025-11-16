@@ -104,6 +104,23 @@ class _EventDetailPageState extends State<EventDetailPage> {
     return confirmed;
   }
 
+  SliverPersistentHeader _buildStickyHeader(String title) {
+    return SliverPersistentHeader(
+      pinned: true,
+      delegate: _StickyHeaderDelegate(
+        child: Container(
+          color: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          alignment: Alignment.centerLeft,
+          child: Text(
+            title,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final sortedDetails = List<Expense>.from(_event.details);
@@ -182,70 +199,168 @@ class _EventDetailPageState extends State<EventDetailPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Text(
+                'イベント名: ${_event.name}',
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
               Text('イベントID: ${_event.id}'),
               const SizedBox(height: 8),
               Text('メンバー数: ${_event.members.length}人'),
               Text('支出件数: ${_event.details.length}件'),
               const Divider(height: 32),
 
-              buildMemberSection(
-                context,
-                _event,
-                _memberController,
-                onUpdate: _updateEvent,
+              ExpansionTile(
+                title: const Text('👥 メンバー一覧'),
+                initiallyExpanded: true,
+                backgroundColor: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest,
+                collapsedBackgroundColor: Theme.of(context).colorScheme.surface,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: buildMemberSection(
+                      context,
+                      _event,
+                      _memberController,
+                      onUpdate: _updateEvent,
+                    ),
+                  ),
+                ],
               ),
               const Divider(),
 
-              buildExpenseSection(context, _event, onUpdate: _updateEvent),
-              const Divider(),
-
-              const Text(
-                '各メンバーの支払合計金額',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              ...paidTotals.entries.map(
-                (e) => Text(
-                  "${Utils.memberName(e.key, _event.members)}: ${Utils.formatAmount(e.value)}円",
-                  style: const TextStyle(fontSize: 16),
-                ),
-              ),
-              const Divider(),
-
-              const Text(
-                '各メンバーの負担合計金額',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              ...memberShareTotals.entries.map(
-                (e) => Text(
-                  "${Utils.memberName(e.key, _event.members)}: ${Utils.formatAmount(e.value)}円",
-                  style: const TextStyle(fontSize: 16),
-                ),
+              ExpansionTile(
+                title: const Text('💰 支出明細'),
+                initiallyExpanded: true,
+                backgroundColor: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest,
+                collapsedBackgroundColor: Theme.of(context).colorScheme.surface,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: buildExpenseSection(
+                      context,
+                      _event,
+                      onUpdate: _updateEvent,
+                    ),
+                  ),
+                ],
               ),
               const Divider(),
 
-              const Text(
-                'メンバーごとの精算差額',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ExpansionTile(
+                title: const Text('💳 各メンバーの支払合計金額'),
+                initiallyExpanded: true,
+                backgroundColor: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest,
+                collapsedBackgroundColor: Theme.of(context).colorScheme.surface,
+                children: paidTotals.entries
+                    .map(
+                      (e) => Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 4,
+                        ),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            "${Utils.memberName(e.key, _event.members)}: ${Utils.formatAmount(e.value)}円",
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                        ),
+                      ),
+                    )
+                    .toList(),
               ),
-              ...balances.entries.map((e) {
-                final color = e.value > 0
-                    ? Colors.green
-                    : (e.value < 0
-                          ? Colors.red
-                          : Theme.of(context).textTheme.bodyMedium?.color);
-                final sign = e.value >= 0 ? '+' : '';
-                return Text(
-                  "${Utils.memberName(e.key, _event.members)}: $sign${Utils.formatAmount(e.value)}円",
-                  style: TextStyle(color: color),
-                );
-              }),
               const Divider(),
 
-              const Text(
-                '精算結果',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ExpansionTile(
+                title: const Text('💸 各メンバーの負担合計金額'),
+                initiallyExpanded: true,
+                backgroundColor: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest,
+                collapsedBackgroundColor: Theme.of(context).colorScheme.surface,
+                children: memberShareTotals.entries
+                    .map(
+                      (e) => Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 4,
+                        ),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            "${Utils.memberName(e.key, _event.members)}: ${Utils.formatAmount(e.value)}円",
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                        ),
+                      ),
+                    )
+                    .toList(),
               ),
-              ...settlements.map((s) => Text(s)),
+              const Divider(),
+
+              ExpansionTile(
+                title: const Text('📊 メンバーごとの精算差額'),
+                initiallyExpanded: true,
+                backgroundColor: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest,
+                collapsedBackgroundColor: Theme.of(context).colorScheme.surface,
+                children: balances.entries.map((e) {
+                  final color = e.value > 0
+                      ? Colors.green
+                      : (e.value < 0
+                            ? Colors.red
+                            : Theme.of(context).textTheme.bodyMedium?.color);
+                  final sign = e.value >= 0 ? '+' : '';
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
+                    ),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        "${Utils.memberName(e.key, _event.members)}: $sign${Utils.formatAmount(e.value)}円",
+                        style: TextStyle(color: color),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const Divider(),
+
+              ExpansionTile(
+                title: const Text('📈 精算結果'),
+                initiallyExpanded: true,
+                backgroundColor: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest,
+                collapsedBackgroundColor: Theme.of(context).colorScheme.surface,
+                children: settlements
+                    .map(
+                      (s) => Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 4,
+                        ),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(s),
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
 
               const SizedBox(height: 24),
               Center(
@@ -264,4 +379,28 @@ class _EventDetailPageState extends State<EventDetailPage> {
       ),
     );
   }
+}
+
+class _StickyHeaderDelegate extends SliverPersistentHeaderDelegate {
+  final Widget child;
+  _StickyHeaderDelegate({required this.child});
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return child;
+  }
+
+  @override
+  double get maxExtent => 48;
+
+  @override
+  double get minExtent => 48;
+
+  @override
+  bool shouldRebuild(covariant SliverPersistentHeaderDelegate oldDelegate) =>
+      true;
 }
