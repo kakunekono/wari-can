@@ -247,6 +247,7 @@ class EventListLogic {
     );
 
     await saveEvent(newEvent);
+    await saveEventToFirestore(newEvent);
     onUpdated();
 
     ScaffoldMessenger.of(context).showSnackBar(

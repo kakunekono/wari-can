@@ -118,7 +118,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
           title: Text(_event.name),
           actions: [
             IconButton(
-              icon: const Icon(Icons.share),
+              icon: const Icon(Icons.link),
               tooltip: 'イベントを共有',
               onPressed: () {
                 showDialog(
