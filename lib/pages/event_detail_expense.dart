@@ -3,7 +3,7 @@ import 'package:uuid/uuid.dart';
 import 'package:wari_can/models/event.dart';
 import 'package:wari_can/pages/event_detail_expense_input_dialog.dart';
 import 'package:wari_can/utils/utils.dart';
-import 'event_detail_logic.dart';
+import '../logic/event_detail_logic.dart';
 
 /// 支出明細の追加・編集・削除、および入力ダイアログの表示を行うロジック群。
 ///
