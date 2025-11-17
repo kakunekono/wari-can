@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../pages/event_list_page.dart';
@@ -31,8 +32,27 @@ class LoginChoicePage extends StatelessWidget {
   }
 
   Future<void> _signInWithGoogle(BuildContext context) async {
-    final result = await signInWithGoogleWeb();
+    final result = await signInWithGoogleWeb(); // Googleログイン処理（外部定義）
+
     if (result != null) {
+      final user = FirebaseAuth.instance.currentUser;
+
+      if (user != null) {
+        final docRef = FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid);
+        final doc = await docRef.get();
+
+        // Firestore に displayName を保存
+        if (!doc.exists || doc.data()?['name'] == null) {
+          await docRef.set({
+            'name': user.displayName,
+            'createdAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        }
+      }
+
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(

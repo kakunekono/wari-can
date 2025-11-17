@@ -171,6 +171,23 @@ class _AuthGateState extends State<AuthGate> {
     });
   }
 
+  Future<void> _handleAnonymousNameIfNeeded(User user) async {
+    if (!user.isAnonymous) return;
+
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .get();
+    final name = doc.data()?['name'];
+
+    if (name == null || (name is String && name.trim().isEmpty)) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const NameInputScreen()),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
@@ -186,6 +203,7 @@ class _AuthGateState extends State<AuthGate> {
         if (user != null) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             _handleInviteIfNeeded(user);
+            _handleAnonymousNameIfNeeded(user); // ← 追加
           });
           return EventListPage(
             onToggleTheme: widget.onToggleTheme,
@@ -198,6 +216,56 @@ class _AuthGateState extends State<AuthGate> {
           );
         }
       },
+    );
+  }
+}
+
+class NameInputScreen extends StatefulWidget {
+  const NameInputScreen({super.key});
+
+  @override
+  State<NameInputScreen> createState() => _NameInputScreenState();
+}
+
+class _NameInputScreenState extends State<NameInputScreen> {
+  final _controller = TextEditingController();
+
+  Future<void> _saveName() async {
+    final name = _controller.text.trim();
+    if (name.isEmpty) return;
+
+    final user = FirebaseAuth.instance.currentUser;
+    await FirebaseFirestore.instance.collection('users').doc(user!.uid).set({
+      'name': name,
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    Navigator.pop(context); // 元の画面に戻る
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('名前を入力')),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            const Text('匿名ログイン中です。表示名を入力してください。'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _controller,
+              decoration: const InputDecoration(
+                labelText: '表示名',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            ElevatedButton(onPressed: _saveName, child: const Text('保存')),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -1,7 +1,9 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:wari_can/utils/firestore_helper.dart';
 import '../models/event.dart';
 import '../utils/event_json_utils.dart';
 import '../utils/utils.dart';
@@ -121,6 +123,20 @@ class _EventDetailPageState extends State<EventDetailPage> {
     );
   }
 
+  Map<String, String> _sharedNames = {};
+  Future<void> _loadSharedNames() async {
+    final ids = _event.sharedWith.where(
+      (id) => id != FirebaseAuth.instance.currentUser?.uid,
+    );
+    final Map<String, String> names = {};
+    for (final id in ids) {
+      names[id] = await fetchUserName(id);
+    }
+    setState(() {
+      _sharedNames = names;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final sortedDetails = List<Expense>.from(_event.details);
@@ -128,6 +144,9 @@ class _EventDetailPageState extends State<EventDetailPage> {
     final balances = calcTotals(sortedDetails, _event.members);
     final paidTotals = calcPaidTotals(sortedDetails, _event.members);
     final memberShareTotals = memberShareTotalsFunc(sortedDetails);
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+
+    _loadSharedNames();
 
     return PopScope(
       canPop: true,
@@ -200,7 +219,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'イベント名: ${_event.name}',
+                _event.name,
                 style: const TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
@@ -211,6 +230,67 @@ class _EventDetailPageState extends State<EventDetailPage> {
               const SizedBox(height: 8),
               Text('メンバー数: ${_event.members.length}人'),
               Text('支出件数: ${_event.details.length}件'),
+              const SizedBox(height: 8),
+              if (_event.sharedWith.length > 1) ...[
+                const SizedBox(height: 8),
+                ExpansionTile(
+                  title: const Text(
+                    '共有中のユーザー',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  initiallyExpanded: false,
+                  children: _sharedNames.entries.map((entry) {
+                    final id = entry.key;
+                    final name = entry.value;
+
+                    return Card(
+                      child: ListTile(
+                        title: Text(name),
+                        subtitle: Text(id),
+                        trailing: (_event.ownerUid == currentUserId)
+                            ? IconButton(
+                                icon: const Icon(
+                                  Icons.remove_circle,
+                                  color: Colors.red,
+                                ),
+                                onPressed: () async {
+                                  final confirmed = await showDialog<bool>(
+                                    context: context,
+                                    builder: (_) => AlertDialog(
+                                      title: const Text("共有解除の確認"),
+                                      content: Text(
+                                        "このユーザー（$name）との共有を解除しますか？この変更は即反映されます。",
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.pop(context, false),
+                                          child: const Text("キャンセル"),
+                                        ),
+                                        ElevatedButton(
+                                          onPressed: () =>
+                                              Navigator.pop(context, true),
+                                          child: const Text("解除する"),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                  if (confirmed == true) {
+                                    setState(() {
+                                      _event.sharedWith.remove(id);
+                                      _sharedNames.remove(id);
+                                    });
+                                    await saveEvent(context, _event);
+                                    await saveEventToFirestore(_event);
+                                  }
+                                },
+                              )
+                            : null, // オーナー以外は削除ボタン非表示
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
               const Divider(height: 32),
 
               ExpansionTile(

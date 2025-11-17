@@ -1,6 +1,8 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:wari_can/pages/login_choice_page.dart';
 import 'package:wari_can/utils/firestore_helper.dart';
 import '../models/event.dart';
 import '../utils/utils.dart';
@@ -33,20 +35,25 @@ class _EventListPageState extends State<EventListPage> {
   List<Event> _events = [];
   bool _initialized = false;
 
+  bool _isReady = false;
+
   @override
   void initState() {
     super.initState();
     _initializeOnce(); // ← 初期化時に一度だけ実行
-    _loadEvents();
-
-    // ログイン状態を通知（Web共有リンク用）
-    final user = FirebaseAuth.instance.currentUser;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final message = user != null ? "ログイン成功 ✅ UID: ${user.uid}" : "ログイン失敗 ❌";
-      final color = user != null ? Colors.green : Colors.red;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message), backgroundColor: color));
+    _loadEvents().then((_) {
+      // ログイン状態を通知（Web共有リンク用）
+      final user = FirebaseAuth.instance.currentUser;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final message = user != null ? "ログイン成功 ✅ UID: ${user.uid}" : "ログイン失敗 ❌";
+        final color = user != null ? Colors.green : Colors.red;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message), backgroundColor: color),
+        );
+      });
+      setState(() {
+        _isReady = true;
+      });
     });
   }
 
@@ -99,6 +106,7 @@ class _EventListPageState extends State<EventListPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_isReady) return const SizedBox.shrink(); // 初期化完了まで描画しない
     return Scaffold(
       appBar: AppBar(
         title: const Text('イベント一覧'),
@@ -138,7 +146,40 @@ class _EventListPageState extends State<EventListPage> {
             icon: const Icon(Icons.logout),
             tooltip: 'ログアウト',
             onPressed: () async {
-              await FirebaseAuth.instance.signOut();
+              final confirmed = await showDialog<bool>(
+                context: context,
+                builder: (_) => AlertDialog(
+                  title: const Text("ログアウトの確認"),
+                  content: const Text("本当にログアウトしますか？"),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text("キャンセル"),
+                    ),
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text("ログアウトする"),
+                    ),
+                  ],
+                ),
+              );
+
+              if (confirmed == true) {
+                await FirebaseAuth.instance.signOut();
+
+                if (context.mounted) {
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => LoginChoicePage(
+                        onToggleTheme: widget.onToggleTheme,
+                        isDark: widget.isDark,
+                      ),
+                    ),
+                    (route) => false, // すべての前の画面を削除
+                  );
+                }
+              }
             },
           ),
         ],
@@ -249,6 +290,35 @@ class _EventListPageState extends State<EventListPage> {
                   ),
           ),
         ],
+      ),
+      bottomNavigationBar: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        color: Theme.of(context).colorScheme.surfaceVariant,
+        child: FutureBuilder<User?>(
+          future: Future.value(FirebaseAuth.instance.currentUser),
+          builder: (context, snapshot) {
+            final user = snapshot.data;
+            if (user == null) return const SizedBox.shrink();
+
+            final uid = user.uid;
+            final name = user.displayName ?? '（未設定）';
+            final isAnonymous = user.isAnonymous;
+
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'ログイン中: ${isAnonymous ? "匿名" : name}',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                Text(
+                  'UID: ${uid.substring(0, 8)}...', // 長すぎるので省略表示
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }

@@ -146,3 +146,18 @@ Future<List<Event>> fetchAllEventsFromFirestore() async {
   final snapshot = await FirebaseFirestore.instance.collection('events').get();
   return snapshot.docs.map((doc) => Event.fromJson(doc.data())).toList();
 }
+
+Future<String> fetchUserName(String uid) async {
+  try {
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .get();
+    if (doc.exists) {
+      return doc.data()?['name'] ?? "@@@";
+    }
+  } catch (e) {
+    debugPrint('名前取得失敗: $e');
+  }
+  return uid; // 取得できなかった場合はIDを表示
+}
