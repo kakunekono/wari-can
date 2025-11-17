@@ -272,7 +272,6 @@ class _EventDetailPageState extends State<EventDetailPage> {
                           alignment: Alignment.centerLeft,
                           child: Text(
                             "${Utils.memberName(e.key, _event.members)}: ${Utils.formatAmount(e.value)}円",
-                            style: const TextStyle(fontSize: 16),
                           ),
                         ),
                       ),
@@ -299,7 +298,6 @@ class _EventDetailPageState extends State<EventDetailPage> {
                           alignment: Alignment.centerLeft,
                           child: Text(
                             "${Utils.memberName(e.key, _event.members)}: ${Utils.formatAmount(e.value)}円",
-                            style: const TextStyle(fontSize: 16),
                           ),
                         ),
                       ),
