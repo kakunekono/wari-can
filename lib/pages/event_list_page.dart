@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wari_can/pages/login_choice_page.dart';
 import 'package:wari_can/utils/firestore_helper.dart';
+import 'package:wari_can/widgets/footer.dart';
 import '../models/event.dart';
 import '../utils/utils.dart';
 import '../logic/event_list_logic.dart';
@@ -291,35 +292,7 @@ class _EventListPageState extends State<EventListPage> {
           ),
         ],
       ),
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        color: Theme.of(context).colorScheme.surfaceVariant,
-        child: FutureBuilder<User?>(
-          future: Future.value(FirebaseAuth.instance.currentUser),
-          builder: (context, snapshot) {
-            final user = snapshot.data;
-            if (user == null) return const SizedBox.shrink();
-
-            final uid = user.uid;
-            final name = user.displayName ?? '（未設定）';
-            final isAnonymous = user.isAnonymous;
-
-            return Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'ログイン中: ${isAnonymous ? "匿名" : name}',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-                Text(
-                  'UID: ${uid.substring(0, 8)}...', // 長すぎるので省略表示
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
-            );
-          },
-        ),
-      ),
+      bottomNavigationBar: const LoginInfoFooter(),
     );
   }
 }

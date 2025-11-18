@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:wari_can/utils/firestore_helper.dart';
+import 'package:wari_can/widgets/footer.dart';
 import '../models/event.dart';
 import '../utils/event_json_utils.dart';
 import '../utils/utils.dart';
@@ -454,6 +455,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
             ],
           ),
         ),
+        bottomNavigationBar: const LoginInfoFooter(),
       ),
     );
   }
