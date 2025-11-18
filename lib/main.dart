@@ -112,6 +112,7 @@ class _WariCanAppState extends State<WariCanApp> {
   }
 }
 
+/// 認証状態に応じて適切な画面に遷移するウィジェット。
 class AuthGate extends StatefulWidget {
   final VoidCallback onToggleTheme;
   final bool isDark;
@@ -126,6 +127,7 @@ class AuthGate extends StatefulWidget {
   State<AuthGate> createState() => _AuthGateState();
 }
 
+/// 認証状態に応じて適切な画面に遷移するウィジェット。
 class _AuthGateState extends State<AuthGate> {
   bool _inviteHandled = false;
   Uri? _initialUri;
@@ -148,6 +150,7 @@ class _AuthGateState extends State<AuthGate> {
     }
   }
 
+  /// 招待リンクからのアクセスであれば、イベントにユーザーを追加する。
   Future<void> _handleInviteIfNeeded(User user) async {
     if (_inviteHandled || _initialUri == null) return;
 
@@ -171,6 +174,7 @@ class _AuthGateState extends State<AuthGate> {
     });
   }
 
+  /// 匿名ユーザーの場合、表示名が設定されていなければ入力画面を表示する。
   Future<void> _handleAnonymousNameIfNeeded(User user) async {
     if (!user.isAnonymous) return;
 
@@ -220,6 +224,7 @@ class _AuthGateState extends State<AuthGate> {
   }
 }
 
+/// 表示名入力画面のウィジェット。
 class NameInputScreen extends StatefulWidget {
   const NameInputScreen({super.key});
 
@@ -227,6 +232,7 @@ class NameInputScreen extends StatefulWidget {
   State<NameInputScreen> createState() => _NameInputScreenState();
 }
 
+/// 匿名ログインユーザーに表示名を入力させる画面。
 class _NameInputScreenState extends State<NameInputScreen> {
   final _controller = TextEditingController();
 
