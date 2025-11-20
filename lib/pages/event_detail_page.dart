@@ -27,6 +27,7 @@ class EventDetailPage extends StatefulWidget {
   State<EventDetailPage> createState() => _EventDetailPageState();
 }
 
+/// イベント詳細ページのステート。
 class _EventDetailPageState extends State<EventDetailPage> {
   /// 編集対象のイベントデータ
   late Event _event;
@@ -34,10 +35,14 @@ class _EventDetailPageState extends State<EventDetailPage> {
   /// メンバー追加用のテキストコントローラ
   final TextEditingController _memberController = TextEditingController();
 
+  /// 共有中ユーザーの UID → 表示名 のマップ
+  Map<String, String> _sharedNames = {};
+
   @override
   void initState() {
     super.initState();
     _event = widget.event;
+    _loadSharedNames();
   }
 
   @override
@@ -46,12 +51,28 @@ class _EventDetailPageState extends State<EventDetailPage> {
     super.dispose();
   }
 
-  /// イベントの状態を更新し、setStateと保存を行います。
+  /// イベントの状態を更新し、setStateと保存を行う。
   void _updateEvent(Event updated) async {
-    setState(() {
-      _event = updated;
-    });
+    setState(() => _event = updated);
     await saveEventFlexible(context, _event, target: SaveTarget.localOnly);
+  }
+
+  /// 共有中ユーザーの表示名を取得して _sharedNames に格納する。
+  Future<void> _loadSharedNames() async {
+    final ids = _event.sharedWith.where(
+      (id) => id != FirebaseAuth.instance.currentUser?.uid,
+    );
+    final Map<String, String> names = {};
+    for (final id in ids) {
+      names[id] = await fetchUserName(id);
+    }
+    setState(() => _sharedNames = names);
+  }
+
+  /// 戻るときに保存確認を行う。
+  Future<bool> _confirmSaveBeforePop() async {
+    final confirmed = await onWillPopConfirmSave(context, _event);
+    return confirmed;
   }
 
   /// イベント共有リンクを表示するセクション（Web限定）
@@ -67,15 +88,13 @@ class _EventDetailPageState extends State<EventDetailPage> {
 
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(
-          maxWidth: 400, // 必要に応じて調整
-        ),
+        constraints: const BoxConstraints(maxWidth: 400),
         child: Card(
           margin: const EdgeInsets.all(16),
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Column(
-              mainAxisSize: MainAxisSize.min, // ← これが重要！
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
@@ -101,26 +120,6 @@ class _EventDetailPageState extends State<EventDetailPage> {
     );
   }
 
-  /// 戻るときに保存確認を行う
-  Future<bool> _confirmSaveBeforePop() async {
-    final confirmed = await onWillPopConfirmSave(context, _event);
-    return confirmed;
-  }
-
-  Map<String, String> _sharedNames = {};
-  Future<void> _loadSharedNames() async {
-    final ids = _event.sharedWith.where(
-      (id) => id != FirebaseAuth.instance.currentUser?.uid,
-    );
-    final Map<String, String> names = {};
-    for (final id in ids) {
-      names[id] = await fetchUserName(id);
-    }
-    setState(() {
-      _sharedNames = names;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     final sortedDetails = List<Expense>.from(_event.details);
@@ -129,8 +128,6 @@ class _EventDetailPageState extends State<EventDetailPage> {
     final paidTotals = calcPaidTotals(sortedDetails, _event.members);
     final memberShareTotals = memberShareTotalsFunc(sortedDetails);
     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
-
-    _loadSharedNames();
 
     return PopScope(
       canPop: true,
@@ -153,8 +150,8 @@ class _EventDetailPageState extends State<EventDetailPage> {
                     title: const Text('イベント共有'),
                     content: ConstrainedBox(
                       constraints: const BoxConstraints(
-                        maxWidth: 400, // 横幅制限（任意）
-                        maxHeight: 300, // 高さ制限（必要に応じて調整）
+                        maxWidth: 400,
+                        maxHeight: 300,
                       ),
                       child: SingleChildScrollView(
                         child: buildShareSection(_event, context),
@@ -168,7 +165,6 @@ class _EventDetailPageState extends State<EventDetailPage> {
                     ],
                   ),
                 );
-
                 if (result == 'copied') {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('招待リンクをコピーしました')),
@@ -215,18 +211,16 @@ class _EventDetailPageState extends State<EventDetailPage> {
               Text('メンバー数: ${_event.members.length}人'),
               Text('支出件数: ${_event.details.length}件'),
               const SizedBox(height: 8),
-              if (_event.sharedWith.length > 1) ...[
-                const SizedBox(height: 8),
+
+              if (_event.sharedWith.length > 1)
                 ExpansionTile(
                   title: const Text(
                     '共有中のユーザー',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
-                  initiallyExpanded: false,
                   children: _sharedNames.entries.map((entry) {
                     final id = entry.key;
                     final name = entry.value;
-
                     return Card(
                       child: ListTile(
                         title: Text(name),
@@ -268,12 +262,12 @@ class _EventDetailPageState extends State<EventDetailPage> {
                                   }
                                 },
                               )
-                            : null, // オーナー以外は削除ボタン非表示
+                            : null,
                       ),
                     );
                   }).toList(),
                 ),
-              ],
+
               const Divider(height: 32),
 
               ExpansionTile(
@@ -324,22 +318,20 @@ class _EventDetailPageState extends State<EventDetailPage> {
                   context,
                 ).colorScheme.surfaceContainerHighest,
                 collapsedBackgroundColor: Theme.of(context).colorScheme.surface,
-                children: paidTotals.entries
-                    .map(
-                      (e) => Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 4,
-                        ),
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            "${Utils.memberName(e.key, _event.members)}: ${Utils.formatAmount(e.value)}円",
-                          ),
-                        ),
+                children: paidTotals.entries.map((e) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
+                    ),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        "${Utils.memberName(e.key, _event.members)}: ${Utils.formatAmount(e.value)}円",
                       ),
-                    )
-                    .toList(),
+                    ),
+                  );
+                }).toList(),
               ),
               const Divider(),
 
@@ -350,22 +342,20 @@ class _EventDetailPageState extends State<EventDetailPage> {
                   context,
                 ).colorScheme.surfaceContainerHighest,
                 collapsedBackgroundColor: Theme.of(context).colorScheme.surface,
-                children: memberShareTotals.entries
-                    .map(
-                      (e) => Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 4,
-                        ),
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            "${Utils.memberName(e.key, _event.members)}: ${Utils.formatAmount(e.value)}円",
-                          ),
-                        ),
+                children: memberShareTotals.entries.map((e) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
+                    ),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        "${Utils.memberName(e.key, _event.members)}: ${Utils.formatAmount(e.value)}円",
                       ),
-                    )
-                    .toList(),
+                    ),
+                  );
+                }).toList(),
               ),
               const Divider(),
 
@@ -407,23 +397,22 @@ class _EventDetailPageState extends State<EventDetailPage> {
                   context,
                 ).colorScheme.surfaceContainerHighest,
                 collapsedBackgroundColor: Theme.of(context).colorScheme.surface,
-                children: settlements
-                    .map(
-                      (s) => Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 4,
-                        ),
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(s),
-                        ),
-                      ),
-                    )
-                    .toList(),
+                children: settlements.map((s) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
+                    ),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(s),
+                    ),
+                  );
+                }).toList(),
               ),
-
               const SizedBox(height: 24),
+
+              /// 戻るボタン（保存確認付き）
               Center(
                 child: ElevatedButton.icon(
                   icon: const Icon(Icons.arrow_back),

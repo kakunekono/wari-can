@@ -29,7 +29,11 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
   final _totalController = TextEditingController(text: "0");
   final _payDateController = TextEditingController();
   final Map<String, TextEditingController> _controllers = {};
+
+  /// 選択された支払者のID
   String? _payerId;
+
+  /// 分割モード（"equal" または "manual"）
   String _mode = "manual";
 
   @override
@@ -100,6 +104,7 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
   @override
   Widget build(BuildContext context) {
     final diff = subtotal - total;
+
     return AlertDialog(
       title: const Text("支出明細の入力"),
       content: SingleChildScrollView(
@@ -115,9 +120,7 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
               decoration: const InputDecoration(labelText: "合計金額"),
               keyboardType: TextInputType.number,
               onChanged: (_) {
-                if (_mode == "equal") {
-                  _applyEqualSplit();
-                }
+                if (_mode == "equal") _applyEqualSplit();
                 setState(() {});
               },
             ),
@@ -167,7 +170,7 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
       actions: [
         Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch, // 幅をいっぱいに
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Wrap(
               spacing: 8,
@@ -191,7 +194,6 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
                 ),
               ],
             ),
-            // 1行目：合計表示
             Text(
               "合計: ${Utils.formatAmount(subtotal)}円 / 総額: ${Utils.formatAmount(total)}円 / 過不足: ${Utils.formatAmount(diff)}円",
               style: TextStyle(
@@ -199,10 +201,9 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
                 fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 8), // ボタンとの間隔
-            // 2行目：ボタン横並び
+            const SizedBox(height: 8),
             Row(
-              mainAxisAlignment: MainAxisAlignment.end, // 右揃え
+              mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),

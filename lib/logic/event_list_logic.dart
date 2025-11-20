@@ -12,19 +12,22 @@ import '../utils/firestore_helper.dart';
 import '../utils/event_json_utils.dart';
 
 /// イベント一覧画面のロジックをまとめたクラス。
+///
+/// Firestore・SharedPreferences を通じたイベントの取得・保存・編集・削除・インポート・エクスポートなどを担当します。
 class EventListLogic {
+  /// UUID生成器（メンバー複製などに使用）
   final _uuid = const Uuid();
+
+  /// 初期化済みフラグ（initializeOnce用）
   bool _initialized = false;
 
   /// Firestoreからイベントを取得し、ローカルキャッシュも更新して返す。
   Future<List<Event>> loadEventsAndUpdateLocalCache() async {
     final events = await loadEvents();
-
     final prefs = await SharedPreferences.getInstance();
     for (final e in events) {
       await prefs.setString('event_${e.id}', jsonEncode(e.toJson()));
     }
-
     return events;
   }
 
@@ -32,7 +35,7 @@ class EventListLogic {
   Future<List<Event>> reloadEventsFromFirestoreAndResave() async {
     final prefs = await SharedPreferences.getInstance();
 
-    // 🔸 ローカルイベントキーをすべて削除
+    // ローカルイベントキーをすべて削除
     final keys = prefs.getKeys().where((k) => k.startsWith('event_')).toList();
     for (final key in keys) {
       await prefs.remove(key);
@@ -40,12 +43,11 @@ class EventListLogic {
 
     debugPrint("[Logic] Cleared ${keys.length} local events.");
 
-    // 🔸 Firestoreからイベント一覧を取得
+    // Firestoreからイベント一覧を取得
     final events = await loadEvents();
-
     debugPrint("[Logic] Fetched ${events.length} events from Firestore.");
 
-    // 🔸 ローカルに保存し直す
+    // ローカルに保存し直す
     for (final e in events) {
       await prefs.setString('event_${e.id}', jsonEncode(e.toJson()));
     }
@@ -66,34 +68,31 @@ class EventListLogic {
   }
 
   /// Firestoreから、ログインユーザーがアクセス可能なイベント一覧を読み込む。
+  ///
+  /// 自分が作成したイベントと共有されたイベントを統合して返します。
   Future<List<Event>> loadEvents() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) {
-      throw Exception('ログインしていません');
-    }
+    if (uid == null) throw Exception('ログインしていません');
 
     final events = <Event>[];
 
     try {
-      // 🔹 自分が作成したイベント
+      // 自分が作成したイベント
       final ownerSnapshot = await FirebaseFirestore.instance
           .collection('events')
           .where('ownerUid', isEqualTo: uid)
           .get();
-
       events.addAll(
         ownerSnapshot.docs.map((doc) => Event.fromJson(doc.data())),
       );
 
-      // 🔹 自分が共有されているイベント
+      // 自分が共有されているイベント
       final sharedSnapshot = await FirebaseFirestore.instance
           .collection('events')
           .where('sharedWith', arrayContains: uid)
           .get();
-
       for (final doc in sharedSnapshot.docs) {
         final event = Event.fromJson(doc.data());
-        // 重複チェック（ownerとshared両方に含まれる場合）
         if (!events.any((e) => e.id == event.id)) {
           events.add(event);
         }
@@ -122,9 +121,7 @@ class EventListLogic {
 
     final timestamps = TimestampedEntity.newTimestamps();
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) {
-      throw Exception('ログインユーザーが見つかりません');
-    }
+    if (uid == null) throw Exception('ログインユーザーが見つかりません');
 
     final newEvent = Event(
       id: Utils.generateUuid(),
@@ -312,7 +309,7 @@ class EventListLogic {
           .collection("events")
           .doc(event.id);
 
-      // 🔹 Firestoreから最新データを取得（キャッシュ無視）
+      // Firestoreから最新データを取得（キャッシュ無視）
       final snapshot = await docRef.get(
         const GetOptions(source: Source.server),
       );
@@ -324,21 +321,21 @@ class EventListLogic {
       final data = snapshot.data()!;
       final updatedEvent = Event.fromJson(data);
 
-      // 🔹 アクセス権の確認
+      // アクセス権の確認
       final ownerUid = data['ownerUid'] as String?;
       final sharedWith = List<String>.from(data['sharedWith'] ?? []);
       if (ownerUid != uid && !sharedWith.contains(uid)) {
         throw Exception('このイベントにアクセスする権限がありません');
       }
 
-      // 🔹 ローカルに保存
+      // ローカルに保存
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(
         'event_${updatedEvent.id}',
         jsonEncode(updatedEvent.toJson()),
       );
 
-      // 🔹 最新データで画面を開く
+      // 最新データで画面を開く
       await Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => EventDetailPage(event: updatedEvent)),
@@ -402,6 +399,8 @@ class EventListLogic {
   }
 
   /// イベント操作ボタン群を構築する。
+  ///
+  /// コピー・アップロード・JSON出力・編集・削除などのアクションを提供します。
   List<Widget> buildEventActionButtons(
     BuildContext context,
     Event event, {

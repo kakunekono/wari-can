@@ -27,6 +27,8 @@ List<Expense> sortDetails(List<Expense> details, List<Member> members) {
 }
 
 /// 各メンバーの支払合計（単純集計）を計算します。
+///
+/// 支払者ごとの合計金額を集計し、未使用メンバーには 0 を設定します。
 Map<String, int> calcPaidTotals(List<Expense> details, List<Member> members) {
   final totals = <String, int>{};
   for (final e in details) {
@@ -39,6 +41,8 @@ Map<String, int> calcPaidTotals(List<Expense> details, List<Member> members) {
 }
 
 /// 各メンバーの精算後残高を計算します（支払額 - 負担額）。
+///
+/// 手動モードでは shares を使用し、均等モードでは参加者数で割り算します。
 Map<String, int> calcTotals(List<Expense> details, List<Member> members) {
   final totals = <String, int>{};
   final owes = <String, int>{};
@@ -68,6 +72,8 @@ Map<String, int> calcTotals(List<Expense> details, List<Member> members) {
 }
 
 /// 各メンバーの負担合計（sharesベース）を計算します。
+///
+/// 手動モードで入力された shares を集計します。
 Map<String, int> memberShareTotalsFunc(List<Expense> details) {
   final totals = <String, int>{};
   for (final e in details) {
@@ -79,6 +85,8 @@ Map<String, int> memberShareTotalsFunc(List<Expense> details) {
 }
 
 /// 精算結果を計算し、送金指示のリストを返します。
+///
+/// 残高がマイナスの人からプラスの人へ送金する形式で整形します。
 List<String> calcSettlement(List<Expense> details, List<Member> members) {
   final balances = calcTotals(details, members);
 
@@ -118,6 +126,8 @@ List<String> calcSettlement(List<Expense> details, List<Member> members) {
 }
 
 /// イベントの内容をテキスト形式で整形し、共有用文字列として返します。
+///
+/// メンバー一覧、支出明細、支払合計、負担合計、精算結果を含みます。
 String buildShareText(Event event) {
   final sortedDetails = sortDetails(event.details, event.members);
   final totals = calcTotals(sortedDetails, event.members);

@@ -27,18 +27,27 @@ class EventListPage extends StatefulWidget {
   State<EventListPage> createState() => _EventListPageState();
 }
 
+/// イベント一覧ページのステート。
 class _EventListPageState extends State<EventListPage> {
-  final _controller = TextEditingController();
-  final _logic = EventListLogic();
+  /// イベント名入力用のテキストコントローラー。
+  final TextEditingController _controller = TextEditingController();
+
+  /// イベント一覧ロジッククラス。
+  final EventListLogic _logic = EventListLogic();
+
+  /// 現在表示中のイベント一覧。
   List<Event> _events = [];
+
+  /// 初期化処理がすでに実行されたかどうか。
   bool _initialized = false;
 
+  /// 初期化完了フラグ（描画制御用）。
   bool _isReady = false;
 
   @override
   void initState() {
     super.initState();
-    _initializeOnce(); // ← 初期化時に一度だけ実行
+    _initializeOnce(); // 初期化時に一度だけ実行
     _loadEvents().then((_) {
       // ログイン状態を通知（Web共有リンク用）
       final user = FirebaseAuth.instance.currentUser;
@@ -49,9 +58,7 @@ class _EventListPageState extends State<EventListPage> {
           SnackBar(content: Text(message), backgroundColor: color),
         );
       });
-      setState(() {
-        _isReady = true;
-      });
+      setState(() => _isReady = true);
     });
   }
 
@@ -67,6 +74,7 @@ class _EventListPageState extends State<EventListPage> {
     return reloaded;
   }
 
+  /// 初期化処理を一度だけ実行する。
   void _initializeOnce() async {
     if (_initialized) return;
     _initialized = true;
@@ -78,6 +86,7 @@ class _EventListPageState extends State<EventListPage> {
   @override
   Widget build(BuildContext context) {
     if (!_isReady) return const SizedBox.shrink(); // 初期化完了まで描画しない
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('イベント一覧'),
@@ -147,7 +156,7 @@ class _EventListPageState extends State<EventListPage> {
                         isDark: widget.isDark,
                       ),
                     ),
-                    (route) => false, // すべての前の画面を削除
+                    (route) => false,
                   );
                 }
               }

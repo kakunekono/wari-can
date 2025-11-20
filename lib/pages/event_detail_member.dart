@@ -7,7 +7,12 @@ import 'package:wari_can/models/event.dart';
 /// UIから分離されたロジックとして、イベントの状態更新をコールバックで受け取ります。
 /// 編集はローカルで完結し、保存時にのみ Firebase へ同期されます。
 
-/// メンバー追加処理。重複チェックとローカル保存を行います。
+/// メンバー追加処理。
+///
+/// - 入力された名前が空でないかを確認します。
+/// - 同名のメンバーがすでに存在する場合は追加を拒否します。
+/// - 新しいメンバーを生成し、イベントに追加します。
+/// - 成功後はコントローラーをクリアします。
 Future<void> addMember(
   BuildContext context,
   Event event,
@@ -37,11 +42,14 @@ Future<void> addMember(
     updateAt: now,
   );
 
-  onUpdate(updated); // ローカル保存 + Firebase同期（外部で処理）
+  onUpdate(updated);
   controller.clear();
 }
 
-/// メンバー削除処理。支出に使用されている場合は削除不可。
+/// メンバー削除処理。
+///
+/// - 対象メンバーが支出に使用されている場合は削除不可。
+/// - 削除確認ダイアログを表示し、承認された場合のみ削除します。
 Future<void> deleteMember(
   BuildContext context,
   Event event,
@@ -86,14 +94,17 @@ Future<void> deleteMember(
   final updatedMembers = event.members.where((m) => m.id != memberId).toList();
   final updated = event.copyWith(members: updatedMembers, updateAt: now);
 
-  onUpdate(updated); // ローカル保存 + Firebase同期（外部で処理）
+  onUpdate(updated);
 
   ScaffoldMessenger.of(
     context,
   ).showSnackBar(SnackBar(content: Text("「${member.name}」を削除しました")));
 }
 
-/// メンバー名編集処理。変更後はローカル保存されます。
+/// メンバー名編集処理。
+///
+/// - 編集ダイアログを表示し、変更された名前を反映します。
+/// - 空文字や変更なしの場合は無視されます。
 Future<void> editMemberName(
   BuildContext context,
   Event event,
@@ -132,11 +143,14 @@ Future<void> editMemberName(
     }).toList();
 
     final updated = event.copyWith(members: updatedMembers, updateAt: now);
-    onUpdate(updated); // ローカル保存 + Firebase同期（外部で処理）
+    onUpdate(updated);
   }
 }
 
 /// メンバー一覧セクションのUIを構築します。
+///
+/// - メンバー名入力欄と追加ボタンを表示します。
+/// - 登録済みメンバーを一覧表示し、編集・削除ボタンを提供します。
 Widget buildMemberSection(
   BuildContext context,
   Event event,

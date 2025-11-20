@@ -11,8 +11,9 @@ import '../logic/event_detail_logic.dart';
 
 /// 支出明細を追加または編集します。
 ///
-/// [editExpense] が指定されていれば編集モードとして動作します。
-/// [editIndex] が指定されていれば既存明細を置き換えます。
+/// - [editExpense] が指定されていれば編集モードとして動作します。
+/// - [editIndex] が指定されていれば既存明細を置き換えます。
+/// - 入力ダイアログで取得した情報を元に明細を構築し、イベントに追加または更新します。
 Future<void> addExpense(
   BuildContext context,
   Event event, {
@@ -67,10 +68,13 @@ Future<void> addExpense(
 
   final sortedDetails = sortDetails(updatedDetails, event.members);
   final updated = event.copyWith(details: sortedDetails, updateAt: now);
-  onUpdate(updated); // ローカル保存 + Firebase同期（外部で処理）
+  onUpdate(updated);
 }
 
 /// 支出明細を削除します。
+///
+/// - 削除確認ダイアログを表示し、承認された場合のみ削除します。
+/// - 削除後はローカル保存と Firebase 同期を行います。
 Future<void> deleteExpense(
   BuildContext context,
   Event event,
@@ -104,7 +108,7 @@ Future<void> deleteExpense(
   final sortedDetails = sortDetails(updatedDetails, event.members);
   final now = DateTime.now();
   final updated = event.copyWith(details: sortedDetails, updateAt: now);
-  onUpdate(updated); // ローカル保存 + Firebase同期（外部で処理）
+  onUpdate(updated);
 
   ScaffoldMessenger.of(
     context,
@@ -112,6 +116,9 @@ Future<void> deleteExpense(
 }
 
 /// 支出明細一覧セクションのUIを構築します。
+///
+/// - 支払者ごとにグループ化された明細を表示します。
+/// - 各明細には編集・削除ボタンが付属します。
 Widget buildExpenseSection(
   BuildContext context,
   Event event, {

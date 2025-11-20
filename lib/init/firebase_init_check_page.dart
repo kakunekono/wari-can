@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import '../../firebase_options.dart';
-import 'event_list_page.dart';
+import '../pages/event_list_page.dart';
 
 /// Firebase の初期化状態を確認するページ。
 /// 成功すれば `EventListPage` に遷移する。
