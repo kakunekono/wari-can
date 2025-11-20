@@ -114,7 +114,12 @@ class LoginChoicePage extends StatelessWidget {
                 icon: const Icon(Icons.wifi_off),
                 label: const Text('ローカルモードで使う'),
                 onPressed: () {
-                  // 後でローカルモード処理を追加
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("🚧 この機能は現在作成中です"),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
                 },
               ),
             ),

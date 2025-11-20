@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wari_can/pages/login_choice_page.dart';
-import 'package:wari_can/utils/firestore_helper.dart';
 import 'package:wari_can/widgets/footer.dart';
 import '../models/event.dart';
 import '../utils/utils.dart';
@@ -59,41 +57,14 @@ class _EventListPageState extends State<EventListPage> {
 
   /// ローカルイベントを読み込んで表示する。
   Future<void> _loadEvents() async {
-    final loaded = await _logic.loadEvents();
+    final loaded = await _logic.loadEventsAndUpdateLocalCache();
     setState(() => _events = loaded);
   }
 
   /// Firestoreからイベント一覧を取得し、ローカルストレージを再構成する。
-  ///
-  /// 既存の SharedPreferences 上のイベントデータはすべて削除され、
-  /// Firestore 上の最新データで上書きされます。
   Future<List<Event>> reloadEventsFromFirestore(BuildContext context) async {
-    final prefs = await SharedPreferences.getInstance();
-
-    // 🔸 ローカルイベントキーをすべて削除
-    final keys = prefs.getKeys().where((k) => k.startsWith('event_')).toList();
-    for (final key in keys) {
-      await prefs.remove(key);
-    }
-
-    debugPrint("[EventListPage] Cleared ${keys.length} local events.");
-
-    // 🔸 Firestoreからイベント一覧を取得
-    final events = await fetchAllEventsFromFirestore(); // ← FirestoreHelper側で定義
-
-    debugPrint(
-      "[EventListPage] Fetched ${events.length} events from Firestore.",
-    );
-
-    // 🔸 ローカルに保存し直す
-    for (final e in events) {
-      await prefs.setString('event_${e.id}', e.toJson().toString());
-    }
-
-    debugPrint("[EventListPage] Re-saved events to local storage.");
-
-    // 🔸 UIに反映するために返す
-    return events;
+    final reloaded = await _logic.reloadEventsFromFirestoreAndResave();
+    return reloaded;
   }
 
   void _initializeOnce() async {

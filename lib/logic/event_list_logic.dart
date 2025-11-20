@@ -14,6 +14,56 @@ import '../utils/event_json_utils.dart';
 /// イベント一覧画面のロジックをまとめたクラス。
 class EventListLogic {
   final _uuid = const Uuid();
+  bool _initialized = false;
+
+  /// Firestoreからイベントを取得し、ローカルキャッシュも更新して返す。
+  Future<List<Event>> loadEventsAndUpdateLocalCache() async {
+    final events = await loadEvents();
+
+    final prefs = await SharedPreferences.getInstance();
+    for (final e in events) {
+      await prefs.setString('event_${e.id}', jsonEncode(e.toJson()));
+    }
+
+    return events;
+  }
+
+  /// Firestoreからイベントを取得し、ローカルストレージを再構成して返す。
+  Future<List<Event>> reloadEventsFromFirestoreAndResave() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    // 🔸 ローカルイベントキーをすべて削除
+    final keys = prefs.getKeys().where((k) => k.startsWith('event_')).toList();
+    for (final key in keys) {
+      await prefs.remove(key);
+    }
+
+    debugPrint("[Logic] Cleared ${keys.length} local events.");
+
+    // 🔸 Firestoreからイベント一覧を取得
+    final events = await loadEvents();
+
+    debugPrint("[Logic] Fetched ${events.length} events from Firestore.");
+
+    // 🔸 ローカルに保存し直す
+    for (final e in events) {
+      await prefs.setString('event_${e.id}', jsonEncode(e.toJson()));
+    }
+
+    debugPrint("[Logic] Re-saved events to local storage.");
+    return events;
+  }
+
+  /// 初期化処理を一度だけ実行する（UI側から呼び出し）。
+  Future<void> initializeOnce(
+    BuildContext context,
+    void Function(List<Event>) onInitialized,
+  ) async {
+    if (_initialized) return;
+    _initialized = true;
+    final events = await reloadEventsFromFirestoreAndResave();
+    onInitialized(events);
+  }
 
   /// Firestoreから、ログインユーザーがアクセス可能なイベント一覧を読み込む。
   Future<List<Event>> loadEvents() async {
