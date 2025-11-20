@@ -2,76 +2,84 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../pages/event_list_page.dart';
-import '../auth/google_auth_web.dart'; // Googleログイン関数を定義したファイル
+import '../auth/google_auth_web.dart';
 
-/// ログイン方法選択ページ
+/// ログイン方法選択ページ。
+///
+/// 匿名ログイン・Googleログイン・ローカルモード（未実装）を選択可能。
 class LoginChoicePage extends StatelessWidget {
   final VoidCallback onToggleTheme;
   final bool isDark;
 
-  /// コンストラクタ
   const LoginChoicePage({
     super.key,
     required this.onToggleTheme,
     required this.isDark,
   });
 
-  /// 匿名ログイン処理
-  Future<void> _signInAnonymously(BuildContext context) async {
+  /// 匿名ログイン → イベント一覧ページへ遷移
+  Future<void> _handleAnonymousLogin(BuildContext context) async {
     try {
       await FirebaseAuth.instance.signInAnonymously();
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) =>
-              EventListPage(onToggleTheme: onToggleTheme, isDark: isDark),
-        ),
-      );
+      _navigateToEventList(context);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('匿名ログイン失敗: $e'), backgroundColor: Colors.red),
-      );
+      _showError(context, '匿名ログイン失敗: $e');
     }
   }
 
-  /// Googleログイン処理
-  Future<void> _signInWithGoogle(BuildContext context) async {
-    final result = await signInWithGoogleWeb(); // Googleログイン処理（外部定義）
-
-    if (result != null) {
-      final user = FirebaseAuth.instance.currentUser;
-
-      if (user != null) {
-        final docRef = FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid);
-        final doc = await docRef.get();
-
-        // Firestore に displayName を保存
-        if (!doc.exists || doc.data()?['name'] == null) {
-          await docRef.set({
-            'name': user.displayName,
-            'createdAt': FieldValue.serverTimestamp(),
-            'updatedAt': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
-        }
-      }
-
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) =>
-              EventListPage(onToggleTheme: onToggleTheme, isDark: isDark),
-        ),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Googleログイン失敗'),
-          backgroundColor: Colors.red,
-        ),
-      );
+  /// Googleログイン → Firestoreにユーザー情報保存 → イベント一覧ページへ遷移
+  Future<void> _handleGoogleLogin(BuildContext context) async {
+    final result = await signInWithGoogleWeb();
+    if (result == null) {
+      _showError(context, 'Googleログイン失敗');
+      return;
     }
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final docRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid);
+      final doc = await docRef.get();
+
+      if (!doc.exists || doc.data()?['name'] == null) {
+        await docRef.set({
+          'name': user.displayName,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+    }
+
+    _navigateToEventList(context);
+  }
+
+  /// ローカルモード（未実装） → 作成中メッセージ表示
+  void _handleLocalMode(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("🚧 この機能は現在作成中です"),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  /// イベント一覧ページへ遷移
+  void _navigateToEventList(BuildContext context) {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            EventListPage(onToggleTheme: onToggleTheme, isDark: isDark),
+      ),
+    );
+  }
+
+  /// エラーメッセージ表示
+  void _showError(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
   }
 
   @override
@@ -90,41 +98,41 @@ class LoginChoicePage extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            SizedBox(
-              width: 250,
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.person_outline),
-                label: const Text('匿名でログイン'),
-                onPressed: () => _signInAnonymously(context),
-              ),
+            _buildLoginButton(
+              icon: Icons.person_outline,
+              label: '匿名でログイン',
+              onPressed: () => _handleAnonymousLogin(context),
             ),
             const SizedBox(height: 16),
-            SizedBox(
-              width: 250,
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.login),
-                label: const Text('Googleでログイン'),
-                onPressed: () => _signInWithGoogle(context),
-              ),
+            _buildLoginButton(
+              icon: Icons.login,
+              label: 'Googleでログイン',
+              onPressed: () => _handleGoogleLogin(context),
             ),
             const SizedBox(height: 16),
-            SizedBox(
-              width: 250,
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.wifi_off),
-                label: const Text('ローカルモードで使う'),
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text("🚧 この機能は現在作成中です"),
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
-                },
-              ),
+            _buildLoginButton(
+              icon: Icons.wifi_off,
+              label: 'ローカルモードで使う',
+              onPressed: () => _handleLocalMode(context),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// ログインボタン共通ビルダー
+  Widget _buildLoginButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onPressed,
+  }) {
+    return SizedBox(
+      width: 250,
+      child: ElevatedButton.icon(
+        icon: Icon(icon),
+        label: Text(label),
+        onPressed: onPressed,
       ),
     );
   }
