@@ -6,38 +6,52 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/event.dart';
 
-/// 指定されたイベントをFirestoreに保存します（merge付き）。
-///
-/// [event] は保存対象のイベント。`updateAt` は現在時刻に更新されます。
-/// Firestoreの "events" コレクションに保存されます。
-Future<void> saveEventToFirestore(Event event) async {
-  try {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) throw Exception('ログインユーザーが見つかりません');
+/// イベント保存先の種類を指定するための列挙型。
+enum SaveTarget { firestoreOnly, localOnly, both }
 
-    final updated = Event(
-      id: event.id,
-      name: event.name,
-      startDate: event.startDate,
-      endDate: event.endDate,
-      members: event.members,
-      details: event.details,
-      ownerUid: event.ownerUid, // 既存が null なら自分を設定
-      sharedWith: event.sharedWith.isNotEmpty
-          ? event.sharedWith
-          : [uid], // 空なら自分を追加
-      createAt: event.createAt,
-      updateAt: DateTime.now(),
-    );
+/// 指定された保存先にイベントを保存します。
+/// - [context] は Provider から SharedPreferences や FirebaseAuth を取得するために使用します。
+/// - [event] は保存対象のイベント。
+/// - [target] に応じて保存先を切り替えます。
+Future<void> saveEventFlexible(
+  BuildContext context,
+  Event event, {
+  SaveTarget target = SaveTarget.both,
+}) async {
+  final prefs = await SharedPreferences.getInstance();
 
-    await FirebaseFirestore.instance
-        .collection("events")
-        .doc(event.id)
-        .set(updated.toJson(), SetOptions(merge: true));
+  if (target == SaveTarget.localOnly || target == SaveTarget.both) {
+    await prefs.setString('event_${event.id}', event.toJson().toString());
+    debugPrint("ローカル保存完了: ${event.name}");
+  }
 
-    debugPrint("Firestoreにイベント保存完了: ${event.name}");
-  } catch (e) {
-    debugPrint("Firestore保存失敗: $e");
+  if (target == SaveTarget.firestoreOnly || target == SaveTarget.both) {
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) throw Exception('ログインユーザーが見つかりません');
+
+      final updated = Event(
+        id: event.id,
+        name: event.name,
+        startDate: event.startDate,
+        endDate: event.endDate,
+        members: event.members,
+        details: event.details,
+        ownerUid: event.ownerUid,
+        sharedWith: event.sharedWith.isNotEmpty ? event.sharedWith : [uid],
+        createAt: event.createAt,
+        updateAt: DateTime.now(),
+      );
+
+      await FirebaseFirestore.instance
+          .collection("events")
+          .doc(event.id)
+          .set(updated.toJson(), SetOptions(merge: true));
+
+      debugPrint("Firestore保存完了: ${event.name}");
+    } catch (e) {
+      debugPrint("Firestore保存失敗: $e");
+    }
   }
 }
 

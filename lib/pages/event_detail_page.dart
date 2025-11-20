@@ -51,7 +51,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
     setState(() {
       _event = updated;
     });
-    await saveEvent(context, _event); // ローカル保存 + Firebase同期（必要なら）
+    await saveEventFlexible(context, _event, target: SaveTarget.localOnly);
   }
 
   /// イベント共有リンクを表示するセクション（Web限定）
@@ -281,8 +281,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
                                       _event.sharedWith.remove(id);
                                       _sharedNames.remove(id);
                                     });
-                                    await saveEvent(context, _event);
-                                    await saveEventToFirestore(_event);
+                                    await saveEventFlexible(context, _event);
                                   }
                                 },
                               )

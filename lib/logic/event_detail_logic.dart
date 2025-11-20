@@ -208,12 +208,6 @@ String buildShareText(Event event) {
   return buffer.toString();
 }
 
-/// イベントを保存し、Firestoreにもアップロードします。
-Future<void> saveEvent(BuildContext context, Event event) async {
-  final prefs = await SharedPreferences.getInstance();
-  await prefs.setString('event_${event.id}', event.toJson().toString());
-}
-
 /// 戻る前に保存確認ダイアログを表示し、保存処理を行います。
 ///
 /// [context] はダイアログ表示と保存に使用されます。
@@ -241,8 +235,7 @@ Future<bool> onWillPopConfirmSave(BuildContext context, Event event) async {
   );
 
   if (confirmed == true) {
-    await saveEvent(context, event);
-    await saveEventToFirestore(event); // ← Firestore同期（保存時のみ）
+    await saveEventFlexible(context, event);
     return true;
   } else {
     return false;

@@ -57,12 +57,6 @@ class EventListLogic {
     }
   }
 
-  /// イベントをローカルストレージに保存する。
-  Future<void> saveEvent(Event event) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('event_${event.id}', jsonEncode(event.toJson()));
-  }
-
   /// 新しいイベントを作成して保存・返却する。
   Future<Event?> addEvent(BuildContext context, String name) async {
     final trimmed = name.trim();
@@ -183,8 +177,7 @@ class EventListLogic {
         updateAt: DateTime.now(),
       );
       try {
-        await saveEvent(updated);
-        await saveEventToFirestore(updated);
+        await saveEventFlexible(context, updated);
         onUpdated();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -246,8 +239,7 @@ class EventListLogic {
       updateAt: now,
     );
 
-    await saveEvent(newEvent);
-    await saveEventToFirestore(newEvent);
+    await saveEventFlexible(context, newEvent);
     onUpdated();
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -352,7 +344,7 @@ class EventListLogic {
   Future<void> uploadAllEvents(BuildContext context) async {
     final events = await loadEvents();
     for (final e in events) {
-      await saveEventToFirestore(e);
+      await saveEventFlexible(context, e, target: SaveTarget.firestoreOnly);
     }
     ScaffoldMessenger.of(
       context,
@@ -377,7 +369,8 @@ class EventListLogic {
         icon: const Icon(Icons.cloud_upload, color: Colors.green),
         tooltip: 'クラウドへアップロード',
         iconSize: 20,
-        onPressed: () => saveEventToFirestore(event),
+        onPressed: () =>
+            saveEventFlexible(context, event, target: SaveTarget.firestoreOnly),
       ),
       IconButton(
         icon: const Icon(Icons.code),

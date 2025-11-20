@@ -86,16 +86,33 @@ class LoginChoicePage extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            ElevatedButton.icon(
-              icon: const Icon(Icons.person_outline),
-              label: const Text('匿名でログイン'),
-              onPressed: () => _signInAnonymously(context),
+            SizedBox(
+              width: 250,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.person_outline),
+                label: const Text('匿名でログイン'),
+                onPressed: () => _signInAnonymously(context),
+              ),
             ),
             const SizedBox(height: 16),
-            ElevatedButton.icon(
-              icon: const Icon(Icons.login),
-              label: const Text('Googleでログイン'),
-              onPressed: () => _signInWithGoogle(context),
+            SizedBox(
+              width: 250,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.login),
+                label: const Text('Googleでログイン'),
+                onPressed: () => _signInWithGoogle(context),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: 250,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.wifi_off),
+                label: const Text('ローカルモードで使う'),
+                onPressed: () {
+                  // 後でローカルモード処理を追加
+                },
+              ),
             ),
           ],
         ),
