@@ -4,16 +4,19 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../pages/event_list_page.dart';
 import '../auth/google_auth_web.dart'; // Googleログイン関数を定義したファイル
 
+/// ログイン方法選択ページ
 class LoginChoicePage extends StatelessWidget {
   final VoidCallback onToggleTheme;
   final bool isDark;
 
+  /// コンストラクタ
   const LoginChoicePage({
     super.key,
     required this.onToggleTheme,
     required this.isDark,
   });
 
+  /// 匿名ログイン処理
   Future<void> _signInAnonymously(BuildContext context) async {
     try {
       await FirebaseAuth.instance.signInAnonymously();
@@ -31,6 +34,7 @@ class LoginChoicePage extends StatelessWidget {
     }
   }
 
+  /// Googleログイン処理
   Future<void> _signInWithGoogle(BuildContext context) async {
     final result = await signInWithGoogleWeb(); // Googleログイン処理（外部定義）
 

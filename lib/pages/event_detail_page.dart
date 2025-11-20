@@ -107,23 +107,6 @@ class _EventDetailPageState extends State<EventDetailPage> {
     return confirmed;
   }
 
-  SliverPersistentHeader _buildStickyHeader(String title) {
-    return SliverPersistentHeader(
-      pinned: true,
-      delegate: _StickyHeaderDelegate(
-        child: Container(
-          color: Colors.white,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          alignment: Alignment.centerLeft,
-          child: Text(
-            title,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-        ),
-      ),
-    );
-  }
-
   Map<String, String> _sharedNames = {};
   Future<void> _loadSharedNames() async {
     final ids = _event.sharedWith.where(
@@ -458,28 +441,4 @@ class _EventDetailPageState extends State<EventDetailPage> {
       ),
     );
   }
-}
-
-class _StickyHeaderDelegate extends SliverPersistentHeaderDelegate {
-  final Widget child;
-  _StickyHeaderDelegate({required this.child});
-
-  @override
-  Widget build(
-    BuildContext context,
-    double shrinkOffset,
-    bool overlapsContent,
-  ) {
-    return child;
-  }
-
-  @override
-  double get maxExtent => 48;
-
-  @override
-  double get minExtent => 48;
-
-  @override
-  bool shouldRebuild(covariant SliverPersistentHeaderDelegate oldDelegate) =>
-      true;
 }
