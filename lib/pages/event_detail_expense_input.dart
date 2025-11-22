@@ -65,6 +65,9 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
     if (_mode == "equal") {
       WidgetsBinding.instance.addPostFrameCallback((_) => _applyEqualSplit());
     }
+    _itemController.addListener(() => setState(() {}));
+    _totalController.addListener(() => setState(() {}));
+    _payDateController.addListener(() => setState(() {}));
   }
 
   /// 合計金額を取得します。
@@ -99,6 +102,30 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
       _totalController.text = sum.toString();
     }
     setState(() {});
+  }
+
+  /// 保存可能かどうかを判定します。
+  bool _canSave() {
+    if (subtotal != total) return false;
+    if (_payerId == null || _payerId!.isEmpty) return false;
+    if (_itemController.text.trim().isEmpty) return false;
+    final totalValue = int.tryParse(_totalController.text) ?? 0;
+    if (totalValue <= 0) return false;
+    return true;
+  }
+
+  /// 保存処理を実行し、結果を返します。
+  void _handleSave() {
+    Navigator.pop(context, {
+      'item': _itemController.text.trim(),
+      'total': int.tryParse(_totalController.text) ?? 0,
+      'payerId': _payerId,
+      'payDate': _payDateController.text.trim(),
+      'mode': _mode,
+      'shares': _controllers.map(
+        (id, c) => MapEntry(id, int.tryParse(c.text) ?? 0),
+      ),
+    });
   }
 
   @override
@@ -211,46 +238,7 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
                 ),
                 const SizedBox(width: 8),
                 ElevatedButton(
-                  onPressed: subtotal != total
-                      ? null
-                      : () {
-                          if (_payerId == null || _payerId!.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('支払者を選択してください。')),
-                            );
-                            return;
-                          }
-
-                          if (_itemController.text.trim().isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('支出名を入力してください')),
-                            );
-                            return;
-                          }
-
-                          final totalValue =
-                              int.tryParse(_totalController.text) ?? 0;
-                          if (totalValue <= 0) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('合計金額を1円以上で入力してください'),
-                              ),
-                            );
-                            return;
-                          }
-
-                          Navigator.pop(context, {
-                            'item': _itemController.text.trim(),
-                            'total': totalValue,
-                            'payerId': _payerId,
-                            'payDate': _payDateController.text.trim(),
-                            'mode': _mode,
-                            'shares': _controllers.map(
-                              (id, c) =>
-                                  MapEntry(id, int.tryParse(c.text) ?? 0),
-                            ),
-                          });
-                        },
+                  onPressed: _canSave() ? _handleSave : null,
                   child: const Text("保存"),
                 ),
               ],
