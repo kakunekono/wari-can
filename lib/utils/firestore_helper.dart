@@ -9,10 +9,6 @@ import '../models/event.dart';
 /// イベント保存先の種類を指定するための列挙型。
 enum SaveTarget { firestoreOnly, localOnly, both }
 
-/// 指定された保存先にイベントを保存します。
-/// - [context] は Provider から SharedPreferences や FirebaseAuth を取得するために使用します。
-/// - [event] は保存対象のイベント。
-/// - [target] に応じて保存先を切り替えます。
 Future<void> saveEventFlexible(
   BuildContext context,
   Event event, {
@@ -30,16 +26,33 @@ Future<void> saveEventFlexible(
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid == null) throw Exception('ログインユーザーが見つかりません');
 
-      final updated = Event(
-        id: event.id,
+      // ✅ Firestoreから最新のイベント情報を取得
+      final snapshot = await FirebaseFirestore.instance
+          .collection("events")
+          .doc(event.id)
+          .get();
+
+      if (!snapshot.exists) {
+        throw Exception("イベントが存在しません: ${event.id}");
+      }
+
+      final latestEvent = Event.fromJson(snapshot.data()!);
+
+      // ✅ 最新情報で権限チェック
+      final isOwner = latestEvent.ownerUid == uid;
+      final isSharedUser = latestEvent.sharedWith.contains(uid);
+
+      if (!isOwner && !isSharedUser) {
+        throw Exception('保存権限がありません: ${event.name}');
+      }
+
+      final updated = latestEvent.copyWith(
         name: event.name,
         startDate: event.startDate,
         endDate: event.endDate,
         members: event.members,
         details: event.details,
-        ownerUid: event.ownerUid,
-        sharedWith: event.sharedWith.isNotEmpty ? event.sharedWith : [uid],
-        createAt: event.createAt,
+        sharedWith: event.sharedWith,
         updateAt: DateTime.now(),
       );
 
@@ -51,6 +64,7 @@ Future<void> saveEventFlexible(
       debugPrint("Firestore保存完了: ${event.name}");
     } catch (e) {
       debugPrint("Firestore保存失敗: $e");
+      rethrow;
     }
   }
 }
@@ -87,6 +101,7 @@ Future<void> deleteEventFromFirestore(String eventId) async {
     debugPrint("Firestoreからイベント削除完了: $eventId");
   } catch (e) {
     debugPrint("Firestore削除失敗: $e");
+    rethrow;
   }
 }
 

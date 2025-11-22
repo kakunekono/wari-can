@@ -436,16 +436,29 @@ class _EventDetailPageState extends State<EventDetailPage> {
               ),
               const SizedBox(height: 24),
 
-              /// 戻るボタン（保存確認付き）
-              Center(
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.arrow_back),
-                  label: const Text("戻る"),
-                  onPressed: () async {
-                    final allowPop = await _confirmSaveBeforePop();
-                    if (allowPop) Navigator.pop(context);
-                  },
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.arrow_back),
+                    label: const Text("保存して戻る"),
+                    onPressed: () async {
+                      final allowPop = await _confirmSaveBeforePop();
+                      if (allowPop) Navigator.pop(context);
+                    },
+                  ),
+                  const SizedBox(width: 16), // ボタン間の余白
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.close),
+                    label: const Text("保存しないで戻る"),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.grey, // 区別しやすく色を変更
+                    ),
+                    onPressed: () {
+                      Navigator.pop(context); // 保存せずに戻る
+                    },
+                  ),
+                ],
               ),
             ],
           ),

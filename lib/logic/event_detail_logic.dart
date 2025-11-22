@@ -244,7 +244,19 @@ Future<bool> onWillPopConfirmSave(BuildContext context, Event event) async {
   );
 
   if (confirmed == true) {
-    await saveEventFlexible(context, event);
+    try {
+      await saveEventFlexible(context, event);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("保存に失敗しました: $e"),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+      // ✅ 画面にとどまる → Navigator.pop は呼ばない
+      return false;
+    }
     return true;
   } else {
     return false;
