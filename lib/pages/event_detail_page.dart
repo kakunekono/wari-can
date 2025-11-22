@@ -10,7 +10,7 @@ import '../utils/event_json_utils.dart';
 import '../utils/utils.dart';
 import '../logic/event_detail_logic.dart';
 import 'event_detail_member.dart';
-import 'event_detail_expense.dart';
+import '../logic/event_detail_expense.dart';
 
 /// イベントの詳細ページ。
 ///
