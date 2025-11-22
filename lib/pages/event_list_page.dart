@@ -107,11 +107,6 @@ class _EventListPageState extends State<EventListPage> {
             onPressed: widget.onToggleTheme,
           ),
           IconButton(
-            icon: const Icon(Icons.cloud_upload),
-            tooltip: 'クラウドへ一括アップロード',
-            onPressed: () => _logic.uploadAllEvents(context),
-          ),
-          IconButton(
             icon: const Icon(Icons.upload_file),
             tooltip: 'JSON取込',
             onPressed: () async {

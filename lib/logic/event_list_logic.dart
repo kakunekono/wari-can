@@ -161,7 +161,7 @@ class EventListLogic {
   }
 
   /// イベントを削除する（ローカル + Firestore）。
-  Future<void> deleteEvent(BuildContext context, Event event) async {
+  Future<bool> deleteEvent(BuildContext context, Event event) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -180,11 +180,10 @@ class EventListLogic {
       ),
     );
 
-    if (confirmed != true) return;
+    if (confirmed != true) return false;
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('event_${event.id}');
-    await deleteEventFromFirestore(event.id);
+    await deleteEventFlexible(event.id, target: SaveTarget.both);
+    return true;
   }
 
   /// イベント名を編集する。
@@ -415,13 +414,6 @@ class EventListLogic {
         onPressed: () => copyEvent(context, event, onUpdated),
       ),
       IconButton(
-        icon: const Icon(Icons.cloud_upload, color: Colors.green),
-        tooltip: 'クラウドへアップロード',
-        iconSize: 20,
-        onPressed: () =>
-            saveEventFlexible(context, event, target: SaveTarget.firestoreOnly),
-      ),
-      IconButton(
         icon: const Icon(Icons.code),
         tooltip: 'JSON出力',
         iconSize: 20,
@@ -433,15 +425,18 @@ class EventListLogic {
         iconSize: 20,
         onPressed: () => editEventName(context, event, onUpdated),
       ),
-      IconButton(
-        icon: const Icon(Icons.delete, color: Colors.red),
-        tooltip: '削除',
-        iconSize: 20,
-        onPressed: () async {
-          await deleteEvent(context, event);
-          onDeleted();
-        },
-      ),
+      // 削除ボタンをオーナーのみ表示
+      if (event.ownerUid == FirebaseAuth.instance.currentUser?.uid)
+        IconButton(
+          icon: const Icon(Icons.delete, color: Colors.red),
+          tooltip: '削除',
+          iconSize: 20,
+          onPressed: () async {
+            if (await deleteEvent(context, event)) {
+              onDeleted();
+            }
+          },
+        ),
     ];
   }
 }

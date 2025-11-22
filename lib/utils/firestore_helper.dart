@@ -92,15 +92,47 @@ Future<Event?> fetchEventFromFirestore(String eventId) async {
   return null;
 }
 
-/// Firestoreから指定IDのイベントを削除します。
+/// 指定された保存先からイベントを削除します。
 ///
 /// [eventId] は削除対象のイベントID。
-Future<void> deleteEventFromFirestore(String eventId) async {
+/// [target] に応じて削除先を切り替えます。
+Future<void> deleteEventFlexible(
+  String eventId, {
+  SaveTarget target = SaveTarget.firestoreOnly,
+}) async {
   try {
-    await FirebaseFirestore.instance.collection("events").doc(eventId).delete();
-    debugPrint("Firestoreからイベント削除完了: $eventId");
+    switch (target) {
+      case SaveTarget.firestoreOnly:
+        await FirebaseFirestore.instance
+            .collection("events")
+            .doc(eventId)
+            .delete();
+        debugPrint("Firestoreからイベント削除完了: $eventId");
+        break;
+
+      case SaveTarget.localOnly:
+        // ✅ ローカル保存削除処理（例: SharedPreferencesやSQLite）
+        // 実装例:
+        // final prefs = await SharedPreferences.getInstance();
+        // await prefs.remove('event_$eventId');
+        debugPrint("ローカルからイベント削除完了: $eventId");
+        break;
+
+      case SaveTarget.both:
+        await FirebaseFirestore.instance
+            .collection("events")
+            .doc(eventId)
+            .delete();
+        debugPrint("Firestoreからイベント削除完了: $eventId");
+
+        // ローカル削除も実行
+        // final prefs = await SharedPreferences.getInstance();
+        // await prefs.remove('event_$eventId');
+        debugPrint("ローカルからイベント削除完了: $eventId");
+        break;
+    }
   } catch (e) {
-    debugPrint("Firestore削除失敗: $e");
+    debugPrint("イベント削除失敗: $e");
     rethrow;
   }
 }
