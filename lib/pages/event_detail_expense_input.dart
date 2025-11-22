@@ -188,7 +188,12 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
                 controller: _controllers[m.id],
                 decoration: InputDecoration(labelText: m.name),
                 keyboardType: TextInputType.number,
-                onChanged: (_) => _updateTotalFromManualInput(),
+                enabled: _mode == "manual", // 均等なら編集不可、手動なら編集可能
+                onChanged: (_) {
+                  if (_mode == "manual") {
+                    _updateTotalFromManualInput(); // 手動モード時のみ合計を更新
+                  }
+                },
               );
             }),
           ],
@@ -199,35 +204,39 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Wrap(
-              spacing: 8,
+            Row(
               children: [
-                ChoiceChip(
-                  label: const Text("均等"),
-                  selected: _mode == "equal",
-                  onSelected: (_) {
-                    setState(() => _mode = "equal");
-                    _applyEqualSplit();
-                  },
+                Expanded(
+                  child: ChoiceChip(
+                    label: const Text("均等"),
+                    selected: _mode == "equal",
+                    onSelected: (_) {
+                      setState(() => _mode = "equal");
+                      _applyEqualSplit();
+                    },
+                  ),
                 ),
-                ChoiceChip(
-                  label: const Text("手動"),
-                  selected: _mode == "manual",
-                  onSelected: (_) => setState(() => _mode = "manual"),
-                ),
-                TextButton(
-                  onPressed: _updateTotalFromManualInput,
-                  child: const Text("合計金額更新"),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ChoiceChip(
+                    label: const Text("手動"),
+                    selected: _mode == "manual",
+                    onSelected: (_) => setState(() => _mode = "manual"),
+                  ),
                 ),
               ],
             ),
+            const SizedBox(height: 8),
             Text(
-              "合計: ${Utils.formatAmount(subtotal)}円 / 総額: ${Utils.formatAmount(total)}円 / 過不足: ${Utils.formatAmount(diff)}円",
+              "合計: ${Utils.formatAmount(subtotal)}円\n"
+              "総額: ${Utils.formatAmount(total)}円\n"
+              "過不足: ${Utils.formatAmount(diff)}円",
               style: TextStyle(
                 color: diff == 0 ? Colors.green : Colors.red,
                 fontWeight: FontWeight.bold,
               ),
             ),
+
             const SizedBox(height: 8),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
