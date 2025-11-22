@@ -38,6 +38,9 @@ class _EventDetailPageState extends State<EventDetailPage> {
   /// 共有中ユーザーの UID → 表示名 のマップ
   Map<String, String> _sharedNames = {};
 
+  /// スクロールコントローラ
+  final ScrollController _scrollController = ScrollController();
+
   @override
   void initState() {
     super.initState();
@@ -48,6 +51,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
   @override
   void dispose() {
     _memberController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -189,11 +193,31 @@ class _EventDetailPageState extends State<EventDetailPage> {
             ),
           ],
         ),
-        floatingActionButton: FloatingActionButton(
-          onPressed: () => addExpense(context, _event, onUpdate: _updateEvent),
-          child: const Icon(Icons.add),
+        floatingActionButton: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            FloatingActionButton(
+              heroTag: "btnAddExpense",
+              onPressed: () =>
+                  addExpense(context, _event, onUpdate: _updateEvent),
+              child: const Icon(Icons.add),
+            ),
+            const SizedBox(height: 10), // ボタン間の余白
+            FloatingActionButton(
+              heroTag: "btnScrollToTop",
+              onPressed: () {
+                _scrollController.animateTo(
+                  0,
+                  duration: const Duration(milliseconds: 500),
+                  curve: Curves.easeOut,
+                );
+              },
+              child: const Icon(Icons.arrow_upward),
+            ),
+          ],
         ),
         body: SingleChildScrollView(
+          controller: _scrollController,
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

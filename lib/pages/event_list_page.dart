@@ -44,6 +44,15 @@ class _EventListPageState extends State<EventListPage> {
   /// 初期化完了フラグ（描画制御用）。
   bool _isReady = false;
 
+  /// スクロールコントローラー。
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -161,6 +170,16 @@ class _EventListPageState extends State<EventListPage> {
                 }
               }
             },
+          ),
+        ],
+      ),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FloatingActionButton(
+            heroTag: "btnScrollToTop",
+            onPressed: () => {},
+            child: const Icon(Icons.arrow_upward),
           ),
         ],
       ),
