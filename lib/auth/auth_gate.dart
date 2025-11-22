@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:wari_can/utils/utils.dart';
 
 import '../pages/event_list_page.dart';
 import '../pages/login_choice_page.dart';
@@ -63,7 +64,7 @@ class _AuthGateState extends State<AuthGate> {
     // ✅ 参加処理が終わったらトップURLへ戻す
     if (kIsWeb) {
       // Flutter Navigatorでトップに置き換え
-      html.window.history.replaceState(null, 'トップ', '/');
+      html.window.history.replaceState(null, 'トップ', Utils.buildBaseUrl());
     }
   }
 

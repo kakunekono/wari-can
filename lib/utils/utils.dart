@@ -49,25 +49,35 @@ class Utils {
   }
 
   static String generateInviteUrl(String eventId) {
+    final baseUrl = buildBaseUrl();
+    return _addParams(baseUrl, {'eventId': eventId});
+  }
+
+  static String buildBaseUrl() {
     if (!kIsWeb) return '';
 
     final uri = Uri.base;
-    final scheme = uri.scheme; // ← スキーマ (http / https)
+    final scheme = uri.scheme;
     final host = uri.host;
     final port = uri.hasPort ? uri.port : null;
     final isLocal = host == 'localhost';
 
-    final param = 'eventId=$eventId';
-
     if (isLocal) {
       final portPart = port != null ? ':$port' : '';
-      return '$scheme://$host$portPart/?$param';
+      return '$scheme://$host$portPart/';
     } else {
       final pathSegment = uri.pathSegments.isNotEmpty
           ? uri.pathSegments.first
           : '';
       final basePath = pathSegment.isNotEmpty ? '/$pathSegment' : '';
-      return '$scheme://$host$basePath/?$param';
+      return '$scheme://$host$basePath/';
     }
+  }
+
+  static String _addParams(String baseUrl, Map<String, String> params) {
+    final query = params.entries
+        .map((e) => '${e.key}=${Uri.encodeComponent(e.value)}')
+        .join('&');
+    return '$baseUrl?$query';
   }
 }
