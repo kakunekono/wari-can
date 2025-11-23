@@ -119,10 +119,12 @@ Future<void> deleteExpense(
 ///
 /// - 支払者ごとにグループ化された明細を表示します。
 /// - 各明細には編集・削除ボタンが付属します。
+/// - 他人がロック中の場合は編集・削除ボタンを非表示にします。
 Widget buildExpenseSection(
   BuildContext context,
   Event event, {
   required void Function(Event updated) onUpdate,
+  required bool isLockedByMe, // ✅ ロック判定を外から渡す
 }) {
   final sortedDetails = sortDetails(event.details, event.members);
   return Column(
@@ -196,21 +198,23 @@ Widget buildExpenseSection(
               trailing: Wrap(
                 spacing: 8,
                 children: [
-                  IconButton(
-                    icon: const Icon(Icons.edit, color: Colors.orange),
-                    onPressed: () => addExpense(
-                      context,
-                      event,
-                      editExpense: e,
-                      editIndex: i,
-                      onUpdate: onUpdate,
+                  if (isLockedByMe) ...[
+                    IconButton(
+                      icon: const Icon(Icons.edit, color: Colors.orange),
+                      onPressed: () => addExpense(
+                        context,
+                        event,
+                        editExpense: e,
+                        editIndex: i,
+                        onUpdate: onUpdate,
+                      ),
                     ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: () =>
-                        deleteExpense(context, event, i, onUpdate: onUpdate),
-                  ),
+                    IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      onPressed: () =>
+                          deleteExpense(context, event, i, onUpdate: onUpdate),
+                    ),
+                  ],
                 ],
               ),
             ),

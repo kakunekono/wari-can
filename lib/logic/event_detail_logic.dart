@@ -246,6 +246,9 @@ Future<bool> onWillPopConfirmSave(BuildContext context, Event event) async {
   if (confirmed == true) {
     try {
       await saveEventFlexible(context, event);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("保存しました")));
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

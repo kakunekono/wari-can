@@ -151,11 +151,13 @@ Future<void> editMemberName(
 ///
 /// - メンバー名入力欄と追加ボタンを表示します。
 /// - 登録済みメンバーを一覧表示し、編集・削除ボタンを提供します。
+/// - 他人がロック中の場合は編集・削除ボタンを非表示にします。
 Widget buildMemberSection(
   BuildContext context,
   Event event,
   TextEditingController controller, {
   required void Function(Event updated) onUpdate,
+  required bool isLockedByMe,
 }) {
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -191,16 +193,22 @@ Widget buildMemberSection(
             trailing: Wrap(
               spacing: 8,
               children: [
-                IconButton(
-                  onPressed: () =>
-                      editMemberName(context, event, m.id, onUpdate: onUpdate),
-                  icon: const Icon(Icons.edit, color: Colors.orange),
-                ),
-                IconButton(
-                  onPressed: () =>
-                      deleteMember(context, event, m.id, onUpdate: onUpdate),
-                  icon: const Icon(Icons.delete, color: Colors.red),
-                ),
+                if (isLockedByMe) ...[
+                  IconButton(
+                    onPressed: () => editMemberName(
+                      context,
+                      event,
+                      m.id,
+                      onUpdate: onUpdate,
+                    ),
+                    icon: const Icon(Icons.edit, color: Colors.orange),
+                  ),
+                  IconButton(
+                    onPressed: () =>
+                        deleteMember(context, event, m.id, onUpdate: onUpdate),
+                    icon: const Icon(Icons.delete, color: Colors.red),
+                  ),
+                ],
               ],
             ),
           ),

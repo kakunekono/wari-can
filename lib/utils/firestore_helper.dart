@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:wari_can/logic/lock_manager.dart';
 import '../models/event.dart';
 
 /// イベント保存先の種類を指定するための列挙型。
@@ -14,9 +15,8 @@ Future<void> saveEventFlexible(
   Event event, {
   SaveTarget target = SaveTarget.both,
 }) async {
-  final prefs = await SharedPreferences.getInstance();
-
   if (target == SaveTarget.localOnly || target == SaveTarget.both) {
+    final prefs = await SharedPreferences.getInstance();
     await prefs.setString('event_${event.id}', event.toJson().toString());
     debugPrint("ローカル保存完了: ${event.name}");
   }
@@ -44,6 +44,12 @@ Future<void> saveEventFlexible(
 
       if (!isOwner && !isSharedUser) {
         throw Exception('保存権限がありません: ${event.name}');
+      }
+
+      // ✅ ロックの有効性を確認
+      final valid = await LockManager.hasValidLock(event.id, uid);
+      if (!valid) {
+        throw Exception("有効なロックを保持していません。保存できません。");
       }
 
       final updated = latestEvent.copyWith(
@@ -208,6 +214,7 @@ Future<List<Event>> fetchAllEventsFromFirestore() async {
   return snapshot.docs.map((doc) => Event.fromJson(doc.data())).toList();
 }
 
+/// 指定されたユーザーIDからユーザー名を取得します。
 Future<String> fetchUserName(String uid) async {
   try {
     final doc = await FirebaseFirestore.instance
