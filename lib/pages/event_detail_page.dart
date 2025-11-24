@@ -293,8 +293,17 @@ class _EventDetailPageState extends State<EventDetailPage> {
                           final data = snapshot.data!.data();
                           final userName = data?['name'] ?? lockedBy;
 
+                          // 現在のユーザーIDを取得
+                          final currentUserId =
+                              FirebaseAuth.instance.currentUser?.uid;
+
+                          // 自分がロック保持者ならテキストを出さない
+                          if (lockedBy == currentUserId) {
+                            return const SizedBox.shrink(); // 空のウィジェットを返す
+                          }
+
                           return Text(
-                            '編集中: $userName(有効期限: ${expiresAt.toLocal()})',
+                            '編集中: $userName (有効期限: ${expiresAt.toLocal()})',
                             style: const TextStyle(color: Colors.red),
                           );
                         },
