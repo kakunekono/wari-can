@@ -2,13 +2,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:wari_can/utils/utils.dart';
 
 import '../pages/event_list_page.dart';
 import '../pages/login_choice_page.dart';
 import '../pages/name_input_screen.dart';
-// ignore: deprecated_member_use, avoid_web_libraries_in_flutter
-import 'dart:html' as html;
 
 /// 認証状態に応じて適切な画面に遷移するウィジェット。
 class AuthGate extends StatefulWidget {
@@ -60,12 +57,6 @@ class _AuthGateState extends State<AuthGate> {
     }
 
     setState(() => _inviteHandled = true);
-
-    // ✅ 参加処理が終わったらトップURLへ戻す
-    if (kIsWeb) {
-      // Flutter Navigatorでトップに置き換え
-      html.window.history.replaceState(null, 'トップ', Utils.buildBaseUrl());
-    }
   }
 
   Future<void> _handleAnonymousNameIfNeeded(User user) async {
