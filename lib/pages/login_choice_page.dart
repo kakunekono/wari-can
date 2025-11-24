@@ -47,6 +47,7 @@ class LoginChoicePage extends StatelessWidget {
           'name': user.displayName,
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
+          'isAnonymous': user.isAnonymous,
         }, SetOptions(merge: true));
       }
     }

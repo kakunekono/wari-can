@@ -26,6 +26,7 @@ class _NameInputScreenState extends State<NameInputScreen> {
       'name': name,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
+      'isAnonymous': user.isAnonymous,
     });
 
     Navigator.pop(context);
