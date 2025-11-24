@@ -173,8 +173,22 @@ class _EventListPageState extends State<EventListPage> {
         children: [
           FloatingActionButton(
             heroTag: "btnScrollToTop",
+            mini: true,
             onPressed: () => {},
             child: const Icon(Icons.arrow_upward),
+          ),
+          const SizedBox(height: 10), // ボタン間の余白
+          FloatingActionButton(
+            heroTag: "btnScrollToBottom",
+            mini: true,
+            onPressed: () {
+              _scrollController.animateTo(
+                _scrollController.position.maxScrollExtent, // 一番下まで
+                duration: const Duration(milliseconds: 500),
+                curve: Curves.easeOut,
+              );
+            },
+            child: const Icon(Icons.arrow_downward),
           ),
         ],
       ),

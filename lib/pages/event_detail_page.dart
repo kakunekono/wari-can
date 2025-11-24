@@ -234,6 +234,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
               children: [
                 FloatingActionButton(
                   heroTag: "btnAddExpense",
+                  mini: true,
                   onPressed: () =>
                       addExpense(context, _event, onUpdate: _updateEvent),
                   child: const Icon(Icons.add),
@@ -241,6 +242,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
                 const SizedBox(height: 10), // ボタン間の余白
                 FloatingActionButton(
                   heroTag: "btnScrollToTop",
+                  mini: true,
                   onPressed: () {
                     _scrollController.animateTo(
                       0,
@@ -249,6 +251,19 @@ class _EventDetailPageState extends State<EventDetailPage> {
                     );
                   },
                   child: const Icon(Icons.arrow_upward),
+                ),
+                const SizedBox(height: 10), // ボタン間の余白
+                FloatingActionButton(
+                  heroTag: "btnScrollToBottom",
+                  mini: true,
+                  onPressed: () {
+                    _scrollController.animateTo(
+                      _scrollController.position.maxScrollExtent, // 一番下まで
+                      duration: const Duration(milliseconds: 500),
+                      curve: Curves.easeOut,
+                    );
+                  },
+                  child: const Icon(Icons.arrow_downward),
                 ),
               ],
             ),
