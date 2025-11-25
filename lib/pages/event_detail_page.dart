@@ -68,6 +68,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
     await saveEventFlexible(context, _event, target: SaveTarget.localOnly);
   }
 
+  /// イベント詳細ページに入ったときにロックを取得する。
   Future<void> _acquireLockOnEnter() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
@@ -280,25 +281,20 @@ class _EventDetailPageState extends State<EventDetailPage> {
                         .doc(widget.event.id)
                         .snapshots(),
                     builder: (context, snapshot) {
+                      final currentUserId =
+                          FirebaseAuth.instance.currentUser?.uid;
+
+                      // ロック情報がない場合 → ボタンを出す
                       if (!snapshot.hasData || !snapshot.data!.exists) {
                         return TextButton(
                           onPressed: () async {
-                            // ここでロックを新規作成する処理を呼ぶ
-                            try {
-                              await LockManager.acquireLock(
-                                _event.id,
-                                FirebaseAuth.instance.currentUser!.uid,
-                              );
-                              setState(() {}); // 状態を更新して再描画
-                            } catch (e) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text("ロック取得失敗: $e")),
-                              );
-                            }
+                            await _acquireLockOnEnter();
                           },
                           child: const Text('ロックを取得する'),
                         );
                       }
+
+                      // ロック情報あり
                       final data =
                           snapshot.data!.data() as Map<String, dynamic>;
                       final lockedBy = data['lockedBy'] as String?;
@@ -312,30 +308,44 @@ class _EventDetailPageState extends State<EventDetailPage> {
                             .collection('users')
                             .doc(lockedBy)
                             .get(),
-                        builder: (context, snapshot) {
-                          if (snapshot.connectionState ==
+                        builder: (context, userSnapshot) {
+                          if (userSnapshot.connectionState ==
                               ConnectionState.waiting) {
                             return const Text('ユーザー情報取得中...');
                           }
-                          if (!snapshot.hasData || !snapshot.data!.exists) {
+                          if (!userSnapshot.hasData ||
+                              !userSnapshot.data!.exists) {
                             return const Text('不明なユーザー');
                           }
 
-                          final data = snapshot.data!.data();
-                          final userName = data?['name'] ?? lockedBy;
+                          final userData = userSnapshot.data!.data();
+                          final userName = userData?['name'] ?? lockedBy;
 
-                          // 現在のユーザーIDを取得
-                          final currentUserId =
-                              FirebaseAuth.instance.currentUser?.uid;
-
-                          // 自分がロック保持者ならテキストを出さない
+                          // 自分がロック保持者なら「編集中」テキストは出さず、ボタンだけ出す
                           if (lockedBy == currentUserId) {
-                            return const SizedBox.shrink(); // 空のウィジェットを返す
+                            return TextButton(
+                              onPressed: () async {
+                                await _acquireLockOnEnter();
+                              },
+                              child: const Text('ロックを取得する'),
+                            );
                           }
 
-                          return Text(
-                            '編集中: $userName (有効期限: ${expiresAt.toLocal()})',
-                            style: const TextStyle(color: Colors.red),
+                          // 他人がロック保持中 → 「編集中」テキストとボタンを両方出す
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '編集中: $userName (有効期限: ${expiresAt.toLocal()})',
+                                style: const TextStyle(color: Colors.red),
+                              ),
+                              TextButton(
+                                onPressed: () async {
+                                  await _acquireLockOnEnter();
+                                },
+                                child: const Text('ロックを取得する'),
+                              ),
+                            ],
                           );
                         },
                       );
