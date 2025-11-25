@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:wari_can/pages/name_input_screen.dart';
 import '../pages/event_list_page.dart';
 import '../auth/google_auth_web.dart';
 
@@ -11,17 +12,42 @@ class LoginChoicePage extends StatelessWidget {
   final VoidCallback onToggleTheme;
   final bool isDark;
 
+  /// コンストラクタ。
   const LoginChoicePage({
     super.key,
     required this.onToggleTheme,
     required this.isDark,
   });
 
-  /// 匿名ログイン → イベント一覧ページへ遷移
+  /// 匿名ログイン → 名前未設定なら入力画面、設定済みならイベント一覧へ遷移
   Future<void> _handleAnonymousLogin(BuildContext context) async {
     try {
-      await FirebaseAuth.instance.signInAnonymously();
-      _navigateToEventList(context);
+      final cred = await FirebaseAuth.instance.signInAnonymously();
+      final user = cred.user;
+      if (user == null) return;
+
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      final name = doc.data()?['name'];
+
+      if (name == null || (name is String && name.trim().isEmpty)) {
+        // 初回匿名ログイン → 名前入力画面へ
+        final result = await Navigator.push<String>(
+          context,
+          MaterialPageRoute(builder: (_) => const NameInputScreen()),
+        );
+
+        // 名前入力画面から戻ってきたらイベント一覧へ
+        if (result != null && result.isNotEmpty) {
+          _navigateToEventList(context);
+        }
+      } else {
+        // 名前設定済み → イベント一覧へ
+        _navigateToEventList(context);
+      }
     } catch (e) {
       _showError(context, '匿名ログイン失敗: $e');
     }

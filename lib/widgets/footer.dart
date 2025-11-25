@@ -16,8 +16,21 @@ class _LoginInfoFooterState extends State<LoginInfoFooter> {
   @override
   void initState() {
     super.initState();
+    _loadUserName();
+  }
+
+  Future<void> _loadUserName() async {
     final user = FirebaseAuth.instance.currentUser;
-    _displayName = user?.displayName ?? '（未設定）';
+    if (user == null) return;
+
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .get();
+
+    setState(() {
+      _displayName = doc.data()?['name'] ?? user.displayName ?? null;
+    });
   }
 
   @override
@@ -55,9 +68,7 @@ class _LoginInfoFooterState extends State<LoginInfoFooter> {
                             return;
                           }
 
-                          await user.updateDisplayName(newName);
-                          await user.reload();
-
+                          // Firestore の users コレクションを更新
                           await FirebaseFirestore.instance
                               .collection('users')
                               .doc(user.uid)
@@ -77,7 +88,7 @@ class _LoginInfoFooterState extends State<LoginInfoFooter> {
 
               if (newName != null && newName.isNotEmpty) {
                 setState(() {
-                  _displayName = newName; // ← 表示内容を更新
+                  _displayName = newName; // ← Firestoreの値を優先して表示
                 });
               }
             },

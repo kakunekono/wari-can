@@ -14,10 +14,17 @@ class NameInputScreen extends StatefulWidget {
 class _NameInputScreenState extends State<NameInputScreen> {
   final TextEditingController _controller = TextEditingController();
 
-  /// 入力された名前を Firestore に保存する。
   Future<void> _saveName() async {
     final name = _controller.text.trim();
-    if (name.isEmpty) return;
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('名前を入力してください'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
 
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -27,9 +34,9 @@ class _NameInputScreenState extends State<NameInputScreen> {
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
       'isAnonymous': user.isAnonymous,
-    });
+    }, SetOptions(merge: true));
 
-    Navigator.pop(context);
+    Navigator.pop(context, name);
   }
 
   @override

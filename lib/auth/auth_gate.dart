@@ -25,6 +25,7 @@ class AuthGate extends StatefulWidget {
   State<AuthGate> createState() => _AuthGateState();
 }
 
+/// AuthGate のステート。
 class _AuthGateState extends State<AuthGate> {
   bool _inviteHandled = false;
   Uri? _initialUri;
@@ -35,6 +36,7 @@ class _AuthGateState extends State<AuthGate> {
     _loadInitialUri();
   }
 
+  /// Web版で初期URIを取得する。
   Future<void> _loadInitialUri() async {
     if (kIsWeb) {
       final uri = Uri.base;
@@ -44,6 +46,7 @@ class _AuthGateState extends State<AuthGate> {
     }
   }
 
+  /// 招待リンクからの参加処理を行う。
   Future<void> _handleInviteIfNeeded(User user) async {
     if (_inviteHandled || _initialUri == null) return;
 
@@ -68,23 +71,6 @@ class _AuthGateState extends State<AuthGate> {
     }
   }
 
-  Future<void> _handleAnonymousNameIfNeeded(User user) async {
-    if (!user.isAnonymous) return;
-
-    final doc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .get();
-    final name = doc.data()?['name'];
-
-    if (name == null || (name is String && name.trim().isEmpty)) {
-      await Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const NameInputScreen()),
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
@@ -98,13 +84,39 @@ class _AuthGateState extends State<AuthGate> {
 
         final user = snapshot.data;
         if (user != null) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _handleInviteIfNeeded(user);
-            _handleAnonymousNameIfNeeded(user);
-          });
-          return EventListPage(
-            onToggleTheme: widget.onToggleTheme,
-            isDark: widget.isDark,
+          return FutureBuilder<DocumentSnapshot>(
+            future: FirebaseFirestore.instance
+                .collection('users')
+                .doc(user.uid)
+                .get(),
+            builder: (context, userDocSnapshot) {
+              if (userDocSnapshot.connectionState == ConnectionState.waiting) {
+                return const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                );
+              }
+
+              final doc = userDocSnapshot.data;
+              final name = doc?.data() != null
+                  ? (doc!.data() as Map<String, dynamic>)['name']
+                  : null;
+
+              // 匿名ユーザで名前未設定なら NameInputScreen を優先
+              if (user.isAnonymous &&
+                  (name == null || (name is String && name.trim().isEmpty))) {
+                return const NameInputScreen();
+              }
+
+              // 招待処理は通常ログイン時に実行
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _handleInviteIfNeeded(user);
+              });
+
+              return EventListPage(
+                onToggleTheme: widget.onToggleTheme,
+                isDark: widget.isDark,
+              );
+            },
           );
         } else {
           return LoginChoicePage(
