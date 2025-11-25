@@ -281,7 +281,23 @@ class _EventDetailPageState extends State<EventDetailPage> {
                         .snapshots(),
                     builder: (context, snapshot) {
                       if (!snapshot.hasData || !snapshot.data!.exists) {
-                        return const Text('現在ロックはありません');
+                        return TextButton(
+                          onPressed: () async {
+                            // ここでロックを新規作成する処理を呼ぶ
+                            try {
+                              await LockManager.acquireLock(
+                                _event.id,
+                                FirebaseAuth.instance.currentUser!.uid,
+                              );
+                              setState(() {}); // 状態を更新して再描画
+                            } catch (e) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text("ロック取得失敗: $e")),
+                              );
+                            }
+                          },
+                          child: const Text('ロックを取得する'),
+                        );
                       }
                       final data =
                           snapshot.data!.data() as Map<String, dynamic>;

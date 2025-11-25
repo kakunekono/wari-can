@@ -16,7 +16,7 @@ class LockManager {
         tx.set(ref, {
           'lockedBy': uid,
           'lockedAt': now,
-          'expiresAt': now.add(const Duration(minutes: 30)),
+          'expiresAt': now.add(const Duration(minutes: 15)),
         });
       } else {
         throw Exception('他ユーザーが編集中です');
