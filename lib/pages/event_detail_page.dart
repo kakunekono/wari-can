@@ -168,8 +168,6 @@ class _EventDetailPageState extends State<EventDetailPage> {
           return const Text("エラーが発生しました");
         }
 
-        final isLockedByMe = snapshot.data ?? false;
-
         return PopScope(
           canPop: true,
           onPopInvokedWithResult: (didPop, result) async {
@@ -320,16 +318,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
 
                           final userData = userSnapshot.data!.data();
                           final userName = userData?['name'] ?? lockedBy;
-
-                          // 自分がロック保持者なら「編集中」テキストは出さず、ボタンだけ出す
-                          if (lockedBy == currentUserId) {
-                            return TextButton(
-                              onPressed: () async {
-                                await _acquireLockOnEnter();
-                              },
-                              child: const Text('ロックを取得する'),
-                            );
-                          }
+                          final isLockedByMe = lockedBy == currentUserId;
 
                           // 他人がロック保持中 → 「編集中」テキストとボタンを両方出す
                           return Column(
@@ -337,13 +326,19 @@ class _EventDetailPageState extends State<EventDetailPage> {
                             children: [
                               Text(
                                 '編集中: $userName (有効期限: ${expiresAt.toLocal()})',
-                                style: const TextStyle(color: Colors.red),
+                                style: TextStyle(
+                                  color: isLockedByMe
+                                      ? Colors.lightGreen
+                                      : Colors.red,
+                                ),
                               ),
                               TextButton(
                                 onPressed: () async {
                                   await _acquireLockOnEnter();
                                 },
-                                child: const Text('ロックを取得する'),
+                                child: Text(
+                                  'ロックを${isLockedByMe ? '再' : ''}取得する',
+                                ),
                               ),
                             ],
                           );

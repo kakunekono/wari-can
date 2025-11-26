@@ -24,17 +24,6 @@ class LockManager {
     });
   }
 
-  /// ロック延長
-  static Future<void> refreshLock(String eventId, String uid) async {
-    final ref = _locks.doc(eventId);
-    final now = DateTime.now();
-    await ref.update({
-      'lockedBy': uid,
-      'lockedAt': now,
-      'expiresAt': now.add(const Duration(minutes: 30)),
-    });
-  }
-
   /// ロック解除
   static Future<void> releaseLock(
     String eventId,
