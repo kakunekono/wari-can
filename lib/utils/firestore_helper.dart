@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wari_can/logic/lock_manager.dart';
+import 'package:wari_can/utils/snackbar_utils.dart';
 import '../models/event.dart';
 
 /// イベント保存先の種類を指定するための列挙型。
@@ -160,18 +161,16 @@ Future<void> uploadLocalEventsToFirestore(BuildContext context) async {
       }
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("ローカルイベントをFirebaseに一括アップロードしました ✅"),
-        backgroundColor: Colors.green,
-      ),
+    showAppSnackBar(
+      context,
+      message: 'ローカルイベントをFirebaseに一括アップロードしました ✅',
+      type: SnackBarType.info,
     );
   } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text("アップロード中にエラーが発生しました: $e"),
-        backgroundColor: Colors.red,
-      ),
+    showAppSnackBar(
+      context,
+      message: "アップロード中にエラーが発生しました: $e",
+      type: SnackBarType.error,
     );
   }
 }
@@ -198,13 +197,13 @@ Future<void> uploadEventToCloud(
         .doc(id)
         .set(eventData, SetOptions(merge: true));
 
-    ScaffoldMessenger.of(
+    showAppSnackBar(
       context,
-    ).showSnackBar(const SnackBar(content: Text("クラウドにアップロードしました")));
+      message: 'クラウドにアップロードしました',
+      type: SnackBarType.info,
+    );
   } catch (e) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text("アップロード失敗: $e")));
+    showAppSnackBar(context, message: "アップロード失敗: $e", type: SnackBarType.error);
   }
 }
 

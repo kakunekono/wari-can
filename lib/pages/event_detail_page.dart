@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:wari_can/logic/lock_manager.dart';
 import 'package:wari_can/utils/firestore_helper.dart';
+import 'package:wari_can/utils/snackbar_utils.dart';
 import 'package:wari_can/widgets/footer.dart';
 import '../models/event.dart';
 import '../utils/event_json_utils.dart';
@@ -79,9 +80,11 @@ class _EventDetailPageState extends State<EventDetailPage> {
     } catch (e) {
       debugPrint("ロック取得失敗: $e");
       // ✅ 他人がロック中ならエラー表示
-      ScaffoldMessenger.of(
+      showAppSnackBar(
         context,
-      ).showSnackBar(const SnackBar(content: Text("他のユーザーが編集中です")));
+        message: '他のユーザーが編集中です',
+        type: SnackBarType.warning,
+      );
       // 追加のみ可能にするUI制御をここで入れる
     }
   }
@@ -209,8 +212,10 @@ class _EventDetailPageState extends State<EventDetailPage> {
                         ),
                       );
                       if (result == 'copied') {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('招待リンクをコピーしました')),
+                        showAppSnackBar(
+                          context,
+                          message: '招待リンクをコピーしました',
+                          type: SnackBarType.info,
                         );
                       }
                     },
@@ -421,18 +426,16 @@ class _EventDetailPageState extends State<EventDetailPage> {
                                             context,
                                             _event,
                                           );
-                                          ScaffoldMessenger.of(
+                                          showAppSnackBar(
                                             context,
-                                          ).showSnackBar(
-                                            const SnackBar(
-                                              content: Text("保存しました"),
-                                            ),
+                                            message: '保存しました',
+                                            type: SnackBarType.info,
                                           );
                                         } catch (e) {
-                                          ScaffoldMessenger.of(
+                                          showAppSnackBar(
                                             context,
-                                          ).showSnackBar(
-                                            SnackBar(content: Text("保存失敗: $e")),
+                                            message: '"保存に失敗しました: $e"',
+                                            type: SnackBarType.error,
                                           );
                                         }
                                       }

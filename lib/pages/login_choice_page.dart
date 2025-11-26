@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:wari_can/pages/name_input_screen.dart';
+import 'package:wari_can/utils/snackbar_utils.dart';
 import '../pages/event_list_page.dart';
 import '../auth/google_auth_web.dart';
 
@@ -83,11 +84,10 @@ class LoginChoicePage extends StatelessWidget {
 
   /// ローカルモード（未実装） → 作成中メッセージ表示
   void _handleLocalMode(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("🚧 この機能は現在作成中です"),
-        duration: Duration(seconds: 2),
-      ),
+    showAppSnackBar(
+      context,
+      message: '🚧 この機能は現在作成中です',
+      type: SnackBarType.error,
     );
   }
 
@@ -104,9 +104,7 @@ class LoginChoicePage extends StatelessWidget {
 
   /// エラーメッセージ表示
   void _showError(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.red),
-    );
+    showAppSnackBar(context, message: message, type: SnackBarType.error);
   }
 
   @override

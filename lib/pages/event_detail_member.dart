@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import 'package:wari_can/models/event.dart';
+import 'package:wari_can/utils/snackbar_utils.dart';
 
 /// メンバー追加・編集・削除に関するロジック群。
 ///
@@ -23,9 +24,11 @@ Future<void> addMember(
   if (name.isEmpty) return;
 
   if (event.members.any((m) => m.name == name)) {
-    ScaffoldMessenger.of(
+    showAppSnackBar(
       context,
-    ).showSnackBar(SnackBar(content: Text('「$name」はすでに登録されています')));
+      message: '「$name」はすでに登録されています',
+      type: SnackBarType.warning,
+    );
     return;
   }
 
@@ -84,9 +87,11 @@ Future<void> deleteMember(
   );
 
   if (used) {
-    ScaffoldMessenger.of(
+    showAppSnackBar(
       context,
-    ).showSnackBar(const SnackBar(content: Text('このメンバーは支払に使用されています')));
+      message: 'このメンバーは支払に使用されています',
+      type: SnackBarType.warning,
+    );
     return;
   }
 
@@ -96,9 +101,11 @@ Future<void> deleteMember(
 
   onUpdate(updated);
 
-  ScaffoldMessenger.of(
+  showAppSnackBar(
     context,
-  ).showSnackBar(SnackBar(content: Text("「${member.name}」を削除しました")));
+    message: '「${member.name}」を削除しました',
+    type: SnackBarType.info,
+  );
 }
 
 /// メンバー名編集処理。

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:wari_can/utils/snackbar_utils.dart';
 
 import '../models/event.dart';
 import 'package:flutter/material.dart';
@@ -37,9 +38,11 @@ class EventJsonUtils {
             onPressed: () {
               Clipboard.setData(ClipboardData(text: jsonStr));
               Navigator.pop(context);
-              ScaffoldMessenger.of(
+              showAppSnackBar(
                 context,
-              ).showSnackBar(const SnackBar(content: Text("JSONをコピーしました")));
+                message: 'JSONをコピーしました',
+                type: SnackBarType.info,
+              );
             },
             child: const Text("コピー"),
           ),
@@ -122,15 +125,19 @@ class EventJsonUtils {
         jsonEncode(newEvent.toJson()),
       );
 
-      ScaffoldMessenger.of(
+      showAppSnackBar(
         context,
-      ).showSnackBar(const SnackBar(content: Text("イベントを読み込みました（新IDで追加）")));
+        message: 'イベントを読み込みました（新IDで追加）',
+        type: SnackBarType.info,
+      );
 
       return newEvent;
     } catch (e) {
-      ScaffoldMessenger.of(
+      showAppSnackBar(
         context,
-      ).showSnackBar(SnackBar(content: Text("読み込みエラー: $e")));
+        message: "読み込みエラー: $e",
+        type: SnackBarType.error,
+      );
       return null;
     }
   }

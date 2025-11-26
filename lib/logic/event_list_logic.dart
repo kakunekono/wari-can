@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:wari_can/utils/snackbar_utils.dart';
 import 'package:wari_can/utils/utils.dart';
 
 import '../models/event.dart';
@@ -110,11 +111,10 @@ class EventListLogic {
   Future<Event?> addEvent(BuildContext context, String name) async {
     final trimmed = name.trim();
     if (trimmed.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("イベント名を入力してください"),
-          backgroundColor: Colors.red,
-        ),
+      showAppSnackBar(
+        context,
+        message: 'イベント名を入力してください',
+        type: SnackBarType.error,
       );
       return null;
     }
@@ -150,11 +150,10 @@ class EventListLogic {
       return newEvent;
     } catch (e) {
       debugPrint("イベント保存失敗: $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("イベントの保存に失敗しました: $e"),
-          backgroundColor: Colors.red,
-        ),
+      showAppSnackBar(
+        context,
+        message: "イベントの保存に失敗しました: $e",
+        type: SnackBarType.error,
       );
       return null;
     }
@@ -225,15 +224,16 @@ class EventListLogic {
       try {
         await saveEventFlexible(context, updated);
         onUpdated();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("イベント名を「$newName」に変更しました"),
-            backgroundColor: Colors.green,
-          ),
+        showAppSnackBar(
+          context,
+          message: 'イベント名を「$newName」に変更しました',
+          type: SnackBarType.info,
         );
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("保存に失敗しました: $e"), backgroundColor: Colors.red),
+        showAppSnackBar(
+          context,
+          message: "保存に失敗しました: $e",
+          type: SnackBarType.error,
         );
       }
     }
@@ -287,12 +287,10 @@ class EventListLogic {
 
     await saveEventFlexible(context, newEvent);
     onUpdated();
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text("「${original.name}」のメンバーをコピーして新規イベントを作成しました"),
-        backgroundColor: Colors.green,
-      ),
+    showAppSnackBar(
+      context,
+      message: "「${original.name}」のメンバーをコピーして新規イベントを作成しました",
+      type: SnackBarType.info,
     );
 
     await openEventDetail(context, newEvent);
@@ -341,11 +339,10 @@ class EventListLogic {
       );
     } catch (e) {
       debugPrint('イベント取得エラー: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('イベントの読み込みに失敗しました: $e'),
-          backgroundColor: Colors.red,
-        ),
+      showAppSnackBar(
+        context,
+        message: 'イベントの読み込みに失敗しました: $e',
+        type: SnackBarType.error,
       );
     }
   }
@@ -373,9 +370,11 @@ class EventListLogic {
     if (confirmed == true) {
       final prefs = await SharedPreferences.getInstance();
       await prefs.clear();
-      ScaffoldMessenger.of(
+      showAppSnackBar(
         context,
-      ).showSnackBar(const SnackBar(content: Text('すべてのデータを削除しました')));
+        message: 'すべてのデータを削除しました',
+        type: SnackBarType.info,
+      );
       return true;
     }
     return false;
@@ -392,9 +391,7 @@ class EventListLogic {
     for (final e in events) {
       await saveEventFlexible(context, e, target: SaveTarget.firestoreOnly);
     }
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('クラウドへアップロード完了')));
+    showAppSnackBar(context, message: 'クラウドへアップロード完了', type: SnackBarType.info);
   }
 
   /// イベント操作ボタン群を構築する。

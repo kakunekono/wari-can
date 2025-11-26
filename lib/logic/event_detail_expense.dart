@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import 'package:wari_can/models/event.dart';
 import 'package:wari_can/pages/event_detail_expense_input.dart';
+import 'package:wari_can/utils/snackbar_utils.dart';
 import 'package:wari_can/utils/utils.dart';
 import 'event_detail_logic.dart';
 
@@ -22,9 +23,11 @@ Future<void> addExpense(
   required void Function(Event updated) onUpdate,
 }) async {
   if (event.members.isEmpty) {
-    ScaffoldMessenger.of(
+    showAppSnackBar(
       context,
-    ).showSnackBar(const SnackBar(content: Text('メンバーを先に登録してください')));
+      message: 'メンバーを先に登録してください',
+      type: SnackBarType.error,
+    );
     return;
   }
 
@@ -110,9 +113,11 @@ Future<void> deleteExpense(
   final updated = event.copyWith(details: sortedDetails, updateAt: now);
   onUpdate(updated);
 
-  ScaffoldMessenger.of(
+  showAppSnackBar(
     context,
-  ).showSnackBar(SnackBar(content: Text("「${expense.item}」を削除しました")));
+    message: '「${expense.item}」を削除しました',
+    type: SnackBarType.info,
+  );
 }
 
 /// 支出明細一覧セクションのUIを構築します。

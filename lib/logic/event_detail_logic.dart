@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:wari_can/models/event.dart';
 import 'package:wari_can/utils/firestore_helper.dart';
+import 'package:wari_can/utils/snackbar_utils.dart';
 import 'package:wari_can/utils/utils.dart';
 
 /// 支出明細を支払者名・支払日・項目名の順でソートします。
@@ -246,16 +247,12 @@ Future<bool> onWillPopConfirmSave(BuildContext context, Event event) async {
   if (confirmed == true) {
     try {
       await saveEventFlexible(context, event);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("保存しました")));
+      showAppSnackBar(context, message: '保存しました', type: SnackBarType.info);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("保存に失敗しました: $e"),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 3),
-        ),
+      showAppSnackBar(
+        context,
+        message: "保存に失敗しました: $e",
+        type: SnackBarType.error,
       );
       // ✅ 画面にとどまる → Navigator.pop は呼ばない
       return false;

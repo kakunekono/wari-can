@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:wari_can/utils/snackbar_utils.dart';
 
 /// 匿名ログインユーザーに表示名を入力させる画面。
 class NameInputScreen extends StatefulWidget {
@@ -17,11 +18,10 @@ class _NameInputScreenState extends State<NameInputScreen> {
   Future<void> _saveName() async {
     final name = _controller.text.trim();
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('名前を入力してください'),
-          backgroundColor: Colors.red,
-        ),
+      showAppSnackBar(
+        context,
+        message: '名前を入力してください',
+        type: SnackBarType.error,
       );
       return;
     }

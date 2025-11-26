@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:wari_can/pages/login_choice_page.dart';
+import 'package:wari_can/utils/snackbar_utils.dart';
 import 'package:wari_can/widgets/footer.dart';
 import '../models/event.dart';
 import '../utils/utils.dart';
@@ -62,10 +63,8 @@ class _EventListPageState extends State<EventListPage> {
       final user = FirebaseAuth.instance.currentUser;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         final message = user != null ? "ログイン成功 ✅ UID: ${user.uid}" : "ログイン失敗 ❌";
-        final color = user != null ? Colors.green : Colors.red;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message), backgroundColor: color),
-        );
+        final barType = user != null ? SnackBarType.info : SnackBarType.error;
+        showAppSnackBar(context, message: message, type: barType);
       });
       setState(() => _isReady = true);
     });
