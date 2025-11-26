@@ -81,6 +81,38 @@ class _LoginInfoFooterState extends State<LoginInfoFooter> {
                         },
                         child: const Text('保存'),
                       ),
+
+                      // 匿名ログインでない場合のみリセットボタンを追加
+                      if (!FirebaseAuth.instance.currentUser!.isAnonymous)
+                        TextButton(
+                          onPressed: () async {
+                            // ユーザー情報を最新化
+                            await FirebaseAuth.instance.currentUser!.reload();
+                            final refreshedUser =
+                                FirebaseAuth.instance.currentUser!;
+
+                            // 最新の Google アカウントの表示名を取得
+                            final googleName = refreshedUser.displayName ?? '';
+                            debugPrint(
+                              "Resetting name to Google account name: $googleName",
+                            );
+                            if (googleName.isEmpty) {
+                              Navigator.pop(context);
+                              return;
+                            }
+
+                            await FirebaseFirestore.instance
+                                .collection('users')
+                                .doc(user.uid)
+                                .update({
+                                  'name': googleName,
+                                  'updatedAt': FieldValue.serverTimestamp(),
+                                });
+
+                            Navigator.pop(context, googleName);
+                          },
+                          child: const Text('表示名リセット'),
+                        ),
                     ],
                   );
                 },
