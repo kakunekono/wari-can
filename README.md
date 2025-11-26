@@ -1,7 +1,7 @@
 ```bash title="GitPages公開"
-flutter build web --release --base-href "/wari-can/";
 flutter build web --release --base-href "/wari-can/" --pwa-strategy=none;
-git commit -am 'deploy';
+git add .;
+git commit -m '`git rev-parse HEAD`';
 git push origin;
 ```
 
