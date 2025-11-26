@@ -168,6 +168,8 @@ class _EventDetailPageState extends State<EventDetailPage> {
           return const Text("エラーが発生しました");
         }
 
+        final currentUser = FirebaseAuth.instance.currentUser;
+
         return PopScope(
           canPop: true,
           onPopInvokedWithResult: (didPop, result) async {
@@ -179,38 +181,42 @@ class _EventDetailPageState extends State<EventDetailPage> {
             appBar: AppBar(
               title: Text(_event.name),
               actions: [
-                IconButton(
-                  icon: const Icon(Icons.link),
-                  tooltip: 'イベントを共有',
-                  onPressed: () async {
-                    final result = await showDialog<String>(
-                      context: context,
-                      builder: (_) => AlertDialog(
-                        title: const Text('イベント共有'),
-                        content: ConstrainedBox(
-                          constraints: const BoxConstraints(
-                            maxWidth: 400,
-                            maxHeight: 300,
+                // 自分がオーナーのときのみ共有リンク生成ボタンを表示
+                if (_event.ownerUid == currentUser?.uid)
+                  IconButton(
+                    icon: const Icon(Icons.link),
+                    tooltip: 'イベントを共有',
+                    onPressed: () async {
+                      final result = await showDialog<String>(
+                        context: context,
+                        builder: (_) => AlertDialog(
+                          title: const Text('イベント共有'),
+                          content: ConstrainedBox(
+                            constraints: const BoxConstraints(
+                              maxWidth: 400,
+                              maxHeight: 300,
+                            ),
+                            child: SingleChildScrollView(
+                              child: buildShareSection(_event, context),
+                            ),
                           ),
-                          child: SingleChildScrollView(
-                            child: buildShareSection(_event, context),
-                          ),
+                          actions: [
+                            TextButton(
+                              child: const Text('閉じる'),
+                              onPressed: () => Navigator.pop(context),
+                            ),
+                          ],
                         ),
-                        actions: [
-                          TextButton(
-                            child: const Text('閉じる'),
-                            onPressed: () => Navigator.pop(context),
-                          ),
-                        ],
-                      ),
-                    );
-                    if (result == 'copied') {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('招待リンクをコピーしました')),
                       );
-                    }
-                  },
-                ),
+                      if (result == 'copied') {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('招待リンクをコピーしました')),
+                        );
+                      }
+                    },
+                  ),
+
+                // 他の共有機能は誰でも利用可能
                 IconButton(
                   icon: const Icon(Icons.share),
                   tooltip: 'テキストで共有',
