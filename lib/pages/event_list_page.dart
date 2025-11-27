@@ -235,6 +235,7 @@ class _EventListPageState extends State<EventListPage> {
             child: _events.isEmpty
                 ? const Center(child: Text('登録されたイベントはありません'))
                 : ListView.builder(
+                    controller: _scrollController,
                     itemCount: _events.length,
                     itemBuilder: (context, i) {
                       final e = _events[i];
