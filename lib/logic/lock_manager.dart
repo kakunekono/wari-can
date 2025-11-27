@@ -3,24 +3,27 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class LockManager {
   static final _locks = FirebaseFirestore.instance.collection('locks');
 
-  /// ロック取得
-  static Future<void> acquireLock(String eventId, String uid) async {
+  /// ロック取得（成功なら true、失敗なら false）
+  static Future<bool> acquireLock(String eventId, String uid) async {
     final ref = _locks.doc(eventId);
-    await FirebaseFirestore.instance.runTransaction((tx) async {
+    return await FirebaseFirestore.instance.runTransaction((tx) async {
       final snap = await tx.get(ref);
       final now = DateTime.now();
       final expiresAt = snap.data()?['expiresAt']?.toDate();
       final lockedBy = snap.data()?['lockedBy'];
 
-      if (!snap.exists || expiresAt!.isBefore(now) || lockedBy == uid) {
+      if (!snap.exists ||
+          expiresAt == null ||
+          expiresAt.isBefore(now) ||
+          lockedBy == uid) {
         tx.set(ref, {
           'lockedBy': uid,
           'lockedAt': now,
           'expiresAt': now.add(const Duration(minutes: 15)),
         });
-      } else {
-        throw Exception('他ユーザーが編集中です');
+        return true;
       }
+      return false;
     });
   }
 
@@ -42,7 +45,7 @@ class LockManager {
     }
   }
 
-  /// 現在のユーザーが有効なロックを保持しているか確認
+  /// 有効ロック確認
   static Future<bool> hasValidLock(String eventId, String uid) async {
     final ref = _locks.doc(eventId);
     final snap = await ref.get();
@@ -54,5 +57,23 @@ class LockManager {
 
     final now = DateTime.now();
     return lockedBy == uid && expiresAt.isAfter(now);
+  }
+
+  /// ロック付き処理を共通化
+  static Future<T?> runWithLock<T>(
+    String eventId,
+    String uid,
+    Future<T> Function() action,
+  ) async {
+    bool acquired = false;
+    try {
+      acquired = await acquireLock(eventId, uid);
+      if (!acquired) throw Exception('他ユーザーが編集中です');
+      return await action();
+    } finally {
+      if (acquired) {
+        await releaseLock(eventId, uid);
+      }
+    }
   }
 }

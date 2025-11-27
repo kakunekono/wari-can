@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:wari_can/logic/lock_manager.dart';
+import 'package:wari_can/utils/exception_utils.dart';
 import 'package:wari_can/utils/firestore_helper.dart';
 import 'package:wari_can/utils/snackbar_utils.dart';
 import 'package:wari_can/widgets/footer.dart';
@@ -75,14 +76,15 @@ class _EventDetailPageState extends State<EventDetailPage> {
     if (uid == null) return;
 
     try {
-      await LockManager.acquireLock(widget.event.id, uid);
+      final acquired = await LockManager.acquireLock(widget.event.id, uid);
+      if (!acquired) throw Exception('他ユーザーが編集中です');
       debugPrint("ロック取得成功: ${widget.event.id}");
-    } catch (e) {
-      debugPrint("ロック取得失敗: $e");
+    } on Exception catch (e) {
+      debugPrint("ロック取得失敗: ${ExceptionUtils.format(e)}");
       // ✅ 他人がロック中ならエラー表示
       showAppSnackBar(
         context,
-        message: '他のユーザーが編集中です',
+        message: ExceptionUtils.format(e),
         type: SnackBarType.warning,
       );
       // 追加のみ可能にするUI制御をここで入れる

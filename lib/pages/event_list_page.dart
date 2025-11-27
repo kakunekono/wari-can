@@ -252,10 +252,8 @@ class _EventListPageState extends State<EventListPage> {
                                   context,
                                   e,
                                   onUpdated: _loadEvents,
-                                  onDeleted: () =>
-                                      setState(() => _events.removeAt(i)),
+                                  onDeleted: () async {},
                                 );
-
                             return Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [

@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:wari_can/logic/lock_manager.dart';
+import 'package:wari_can/utils/exception_utils.dart';
 import 'package:wari_can/utils/snackbar_utils.dart';
 import 'package:wari_can/utils/utils.dart';
 
@@ -159,7 +161,7 @@ class EventListLogic {
     }
   }
 
-  /// イベントを削除する（ローカル + Firestore）。
+  /// イベントを削除する（ローカル + Firestore + ロック制御）
   Future<bool> deleteEvent(BuildContext context, Event event) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -181,11 +183,55 @@ class EventListLogic {
 
     if (confirmed != true) return false;
 
-    await deleteEventFlexible(event.id, target: SaveTarget.both);
-    return true;
+    final lockRef = FirebaseFirestore.instance
+        .collection('locks')
+        .doc(event.id);
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+    bool acquiredLock = false;
+
+    try {
+      // ロック取得
+      final success = await FirebaseFirestore.instance.runTransaction((
+        tx,
+      ) async {
+        final snapshot = await tx.get(lockRef);
+        if (!snapshot.exists || snapshot['lockedBy'] == uid) {
+          tx.set(lockRef, {'lockedBy': uid});
+          return true;
+        }
+        return false;
+      });
+
+      if (!success) {
+        showAppSnackBar(
+          context,
+          message: "他のユーザーが編集中のため、削除できません。",
+          type: SnackBarType.error,
+        );
+        return false;
+      }
+
+      acquiredLock = true;
+
+      // イベント削除
+      await deleteEventFlexible(event.id, target: SaveTarget.both);
+
+      return true;
+    } catch (e) {
+      showAppSnackBar(
+        context,
+        message: "削除処理中にエラーが発生しました: $e",
+        type: SnackBarType.error,
+      );
+      return false;
+    } finally {
+      if (acquiredLock) {
+        await lockRef.delete(); // または update({'lockedBy': null})
+      }
+    }
   }
 
-  /// イベント名を編集する。
+  /// イベント名を編集する（ロック取得対応版）
   Future<void> editEventName(
     BuildContext context,
     Event event,
@@ -221,20 +267,38 @@ class EventListLogic {
         name: newName.trim(),
         updateAt: DateTime.now(),
       );
+
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return;
+
+      bool acquiredLock = false;
+
       try {
+        // ロック取得
+        await LockManager.acquireLock(event.id, uid);
+        acquiredLock = true;
+
+        // 保存処理
         await saveEventFlexible(context, updated);
         onUpdated();
+
         showAppSnackBar(
           context,
           message: 'イベント名を「$newName」に変更しました',
           type: SnackBarType.info,
         );
-      } catch (e) {
+      } on Exception catch (e) {
+        final message = ExceptionUtils.format(e); // 共通整形関数を利用
         showAppSnackBar(
           context,
-          message: "保存に失敗しました: $e",
+          message: "保存に失敗しました: $message",
           type: SnackBarType.error,
         );
+      } finally {
+        // 自分が取得したロックのみ解放
+        if (acquiredLock) {
+          await LockManager.releaseLock(event.id, uid);
+        }
       }
     }
   }
@@ -416,12 +480,13 @@ class EventListLogic {
         iconSize: 20,
         onPressed: () => EventJsonUtils.exportEventJson(context, event),
       ),
-      IconButton(
-        icon: const Icon(Icons.edit, color: Colors.blue),
-        tooltip: '編集',
-        iconSize: 20,
-        onPressed: () => editEventName(context, event, onUpdated),
-      ),
+      if (event.ownerUid == FirebaseAuth.instance.currentUser?.uid)
+        IconButton(
+          icon: const Icon(Icons.edit, color: Colors.blue),
+          tooltip: '編集',
+          iconSize: 20,
+          onPressed: () => editEventName(context, event, onUpdated),
+        ),
       // 削除ボタンをオーナーのみ表示
       if (event.ownerUid == FirebaseAuth.instance.currentUser?.uid)
         IconButton(
