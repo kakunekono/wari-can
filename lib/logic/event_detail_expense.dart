@@ -135,12 +135,7 @@ Widget buildExpenseSection(
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      const Text(
-        '支出明細',
-        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-      ),
-
-      ///
+      /// 支払者ごとに明細をグループ化して表示
       ...memberOrder.expand((memberId) {
         final memberName = Utils.memberName(memberId, event.members);
         // このメンバーの明細を抽出

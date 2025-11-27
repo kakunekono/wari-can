@@ -142,14 +142,13 @@ String buildShareText(Event event) {
   for (final m in event.members) {
     buffer.writeln("・${m.name}");
   }
-  buffer.writeln("\n💰 支出明細:");
+
+  buffer.writeln("\n――――――――――――――――――");
+  buffer.writeln("💰 支出明細:");
 
   for (final m in event.members) {
     final payerName = m.name;
-
-    // このメンバーの明細を抽出
     final memberDetails = sortedDetails.where((e) => e.payer == m.id).toList();
-
     if (memberDetails.isEmpty) continue;
 
     buffer.writeln("💳 $payerName");
@@ -187,30 +186,33 @@ String buildShareText(Event event) {
         }
       }
     }
-
     buffer.writeln(""); // メンバーごとの区切り
   }
 
-  buffer.writeln("\n💳 各メンバーの支払合計金額:");
+  buffer.writeln("――――――――――――――――――");
+  buffer.writeln("💳 各メンバーの支払合計金額:");
   for (final m in event.members) {
     final amount = paidTotals[m.id] ?? 0;
     buffer.writeln("・${m.name}: ${Utils.formatAmount(amount)}円");
   }
 
-  buffer.writeln("\n💸 各メンバーの負担合計金額:");
+  buffer.writeln("\n――――――――――――――――――");
+  buffer.writeln("💸 各メンバーの負担合計金額:");
   for (final m in event.members) {
     final amount = memberShareTotals[m.id] ?? 0;
     buffer.writeln("・${m.name}: ${Utils.formatAmount(amount)}円");
   }
 
-  buffer.writeln("\n📊 メンバーごとの精算差額:");
+  buffer.writeln("\n――――――――――――――――――");
+  buffer.writeln("📊 メンバーごとの精算差額:");
   for (final m in event.members) {
     final balance = totals[m.id] ?? 0;
     final sign = balance >= 0 ? '+' : '';
     buffer.writeln("・${m.name}: $sign${Utils.formatAmount(balance)}円");
   }
 
-  buffer.writeln("\n📈 精算結果:");
+  buffer.writeln("\n――――――――――――――――――");
+  buffer.writeln("📈 精算結果:");
   for (final s in settlements) {
     buffer.writeln("・$s");
   }

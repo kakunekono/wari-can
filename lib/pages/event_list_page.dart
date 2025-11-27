@@ -269,7 +269,7 @@ class _EventListPageState extends State<EventListPage> {
                                   subtitle: Text(
                                     [
                                       'イベントID： ${e.id}',
-                                      'メンバー: ${e.members.map((m) => Utils.memberName(m.id, e.members)).join(",")}',
+                                      'メンバー: ${e.members.length}人',
                                       '明細件数： ${e.details.length}件',
                                       '合計金額： ${Utils.formatAmount(e.details.fold(0, (sum, e) => sum + e.amount))}円',
                                     ].join("\n"),
