@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:wari_can/utils/exception_utils.dart';
 
 /// Flutter Web 専用の Google ログイン処理。
 Future<UserCredential?> signInWithGoogleWeb() async {
@@ -14,8 +15,8 @@ Future<UserCredential?> signInWithGoogleWeb() async {
     // googleProvider.setCustomParameters({'prompt': 'select_account'});
 
     return await FirebaseAuth.instance.signInWithPopup(googleProvider);
-  } catch (e) {
-    debugPrint('Googleログイン失敗: $e');
+  } on Exception catch (e) {
+    debugPrint('Googleログイン失敗: ${ExceptionUtils.format(e)}');
     return null;
   }
 }

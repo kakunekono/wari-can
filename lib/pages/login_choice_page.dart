@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:wari_can/pages/name_input_screen.dart';
+import 'package:wari_can/utils/exception_utils.dart';
 import 'package:wari_can/utils/snackbar_utils.dart';
 import '../pages/event_list_page.dart';
 import '../auth/google_auth_web.dart';
@@ -49,8 +50,8 @@ class LoginChoicePage extends StatelessWidget {
         // 名前設定済み → イベント一覧へ
         _navigateToEventList(context);
       }
-    } catch (e) {
-      _showError(context, '匿名ログイン失敗: $e');
+    } on Exception catch (e) {
+      _showError(context, '匿名ログイン失敗: ${ExceptionUtils.format(e)}');
     }
   }
 

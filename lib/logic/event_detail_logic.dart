@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:wari_can/models/event.dart';
+import 'package:wari_can/utils/exception_utils.dart';
 import 'package:wari_can/utils/firestore_helper.dart';
 import 'package:wari_can/utils/snackbar_utils.dart';
 import 'package:wari_can/utils/utils.dart';
@@ -250,10 +251,10 @@ Future<bool> onWillPopConfirmSave(BuildContext context, Event event) async {
     try {
       await saveEventFlexible(context, event);
       showAppSnackBar(context, message: '保存しました', type: SnackBarType.info);
-    } catch (e) {
+    } on Exception catch (e) {
       showAppSnackBar(
         context,
-        message: "保存に失敗しました: $e",
+        message: "保存に失敗しました: ${ExceptionUtils.format(e)}",
         type: SnackBarType.error,
       );
       // ✅ 画面にとどまる → Navigator.pop は呼ばない

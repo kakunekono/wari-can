@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wari_can/logic/lock_manager.dart';
+import 'package:wari_can/utils/exception_utils.dart';
 import 'package:wari_can/utils/snackbar_utils.dart';
 import '../models/event.dart';
 
@@ -69,8 +70,8 @@ Future<void> saveEventFlexible(
           .set(updated.toJson(), SetOptions(merge: true));
 
       debugPrint("Firestore保存完了: ${event.name}");
-    } catch (e) {
-      debugPrint("Firestore保存失敗: $e");
+    } on Exception catch (e) {
+      debugPrint("Firestore保存失敗: ${ExceptionUtils.format(e)}");
       rethrow;
     }
   }
@@ -93,8 +94,8 @@ Future<Event?> fetchEventFromFirestore(String eventId) async {
         return Event.fromJson(data);
       }
     }
-  } catch (e) {
-    debugPrint("Firestore取得失敗: $e");
+  } on Exception catch (e) {
+    debugPrint("Firestore取得失敗: ${ExceptionUtils.format(e)}");
   }
   return null;
 }
@@ -138,8 +139,8 @@ Future<void> deleteEventFlexible(
         debugPrint("ローカルからイベント削除完了: $eventId");
         break;
     }
-  } catch (e) {
-    debugPrint("イベント削除失敗: $e");
+  } on Exception catch (e) {
+    debugPrint("イベント削除失敗: ${ExceptionUtils.format(e)}");
     rethrow;
   }
 }
@@ -166,10 +167,10 @@ Future<void> uploadLocalEventsToFirestore(BuildContext context) async {
       message: 'ローカルイベントをFirebaseに一括アップロードしました ✅',
       type: SnackBarType.info,
     );
-  } catch (e) {
+  } on Exception catch (e) {
     showAppSnackBar(
       context,
-      message: "アップロード中にエラーが発生しました: $e",
+      message: "アップロード中にエラーが発生しました: ${ExceptionUtils.format(e)}",
       type: SnackBarType.error,
     );
   }
@@ -202,8 +203,8 @@ Future<void> uploadEventToCloud(
       message: 'クラウドにアップロードしました',
       type: SnackBarType.info,
     );
-  } catch (e) {
-    showAppSnackBar(context, message: "アップロード失敗: $e", type: SnackBarType.error);
+  } on Exception catch (e) {
+    showAppSnackBar(context, message: "アップロード失敗: ${ExceptionUtils.format(e)}", type: SnackBarType.error);
   }
 }
 
@@ -223,8 +224,8 @@ Future<String> fetchUserName(String uid) async {
     if (doc.exists) {
       return doc.data()?['name'] ?? "@@@";
     }
-  } catch (e) {
-    debugPrint('名前取得失敗: $e');
+  } on Exception catch (e) {
+    debugPrint('名前取得失敗: ${ExceptionUtils.format(e)}');
   }
   return uid; // 取得できなかった場合はIDを表示
 }

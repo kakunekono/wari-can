@@ -103,8 +103,8 @@ class EventListLogic {
 
       events.sort((a, b) => a.name.compareTo(b.name));
       return events;
-    } catch (e) {
-      debugPrint('Firestoreイベント取得失敗: $e');
+    } on Exception catch (e) {
+      debugPrint('Firestoreイベント取得失敗: ${ExceptionUtils.format(e)}');
       return [];
     }
   }
@@ -150,11 +150,11 @@ class EventListLogic {
 
       debugPrint("イベント作成完了: ${newEvent.name}");
       return newEvent;
-    } catch (e) {
-      debugPrint("イベント保存失敗: $e");
+    } on Exception catch (e) {
+      debugPrint("イベント保存失敗: ${ExceptionUtils.format(e)}");
       showAppSnackBar(
         context,
-        message: "イベントの保存に失敗しました: $e",
+        message: "イベントの保存に失敗しました: ${ExceptionUtils.format(e)}",
         type: SnackBarType.error,
       );
       return null;
@@ -217,10 +217,10 @@ class EventListLogic {
       await deleteEventFlexible(event.id, target: SaveTarget.both);
 
       return true;
-    } catch (e) {
+    } on Exception catch (e) {
       showAppSnackBar(
         context,
-        message: "削除処理中にエラーが発生しました: $e",
+        message: "削除処理中にエラーが発生しました: ${ExceptionUtils.format(e)}",
         type: SnackBarType.error,
       );
       return false;
@@ -401,11 +401,11 @@ class EventListLogic {
         context,
         MaterialPageRoute(builder: (_) => EventDetailPage(event: updatedEvent)),
       );
-    } catch (e) {
-      debugPrint('イベント取得エラー: $e');
+    } on Exception catch (e) {
+      debugPrint('イベント取得エラー: ${ExceptionUtils.format(e)}');
       showAppSnackBar(
         context,
-        message: 'イベントの読み込みに失敗しました: $e',
+        message: 'イベントの読み込みに失敗しました: ${ExceptionUtils.format(e)}',
         type: SnackBarType.error,
       );
     }

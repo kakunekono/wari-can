@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:wari_can/utils/exception_utils.dart';
 import 'package:wari_can/utils/snackbar_utils.dart';
 
 import '../models/event.dart';
@@ -132,10 +133,10 @@ class EventJsonUtils {
       );
 
       return newEvent;
-    } catch (e) {
+    } on Exception catch (e) {
       showAppSnackBar(
         context,
-        message: "読み込みエラー: $e",
+        message: "読み込みエラー: ${ExceptionUtils.format(e)}",
         type: SnackBarType.error,
       );
       return null;

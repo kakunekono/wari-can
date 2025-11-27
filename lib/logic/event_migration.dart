@@ -26,7 +26,7 @@ Future<void> migrateLocalEventsIfNeeded() async {
       );
 
       await prefs.setString(key, jsonEncode(updated.toJson()));
-    } catch (e) {
+    } on Exception catch (e) {
       // 破損データなどはスキップ
     }
   }

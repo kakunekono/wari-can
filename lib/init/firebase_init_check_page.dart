@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:wari_can/utils/exception_utils.dart';
 import '../../firebase_options.dart';
 import '../pages/event_list_page.dart';
 
@@ -55,9 +56,9 @@ class _FirebaseInitCheckPageState extends State<FirebaseInitCheckPage> {
           ),
         );
       });
-    } catch (e) {
+    } on Exception catch (e) {
       setState(() {
-        _status = "❌ Firebase接続失敗: $e";
+        _status = "❌ Firebase接続失敗: ${ExceptionUtils.format(e)}";
       });
     }
   }

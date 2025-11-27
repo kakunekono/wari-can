@@ -433,10 +433,11 @@ class _EventDetailPageState extends State<EventDetailPage> {
                                             message: '保存しました',
                                             type: SnackBarType.info,
                                           );
-                                        } catch (e) {
+                                        } on Exception catch (e) {
                                           showAppSnackBar(
                                             context,
-                                            message: '"保存に失敗しました: $e"',
+                                            message:
+                                                '保存に失敗しました: ${ExceptionUtils.format(e)}',
                                             type: SnackBarType.error,
                                           );
                                         }
