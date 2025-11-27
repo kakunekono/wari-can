@@ -144,73 +144,73 @@ String buildShareText(Event event) {
   }
   buffer.writeln("\n💰 支出明細:");
 
-  String? prevPayer;
-  String? prevPayDate;
+  for (final m in event.members) {
+    final payerName = m.name;
 
-  for (final e in sortedDetails) {
-    final payerName = Utils.memberName(e.payer, event.members);
-    final payDateText = (e.payDate != null && e.payDate!.isNotEmpty)
-        ? e.payDate
-        : "XXXX/XX/XX";
+    // このメンバーの明細を抽出
+    final memberDetails = sortedDetails.where((e) => e.payer == m.id).toList();
 
-    if (payerName != prevPayer) {
-      if (prevPayer != null) buffer.writeln("");
-      buffer.writeln("💳 $payerName");
-      buffer.writeln("支払日: $payDateText");
-      prevPayer = payerName;
-      prevPayDate = payDateText;
-    } else if (payDateText != prevPayDate) {
-      buffer.writeln("\n支払日: $payDateText");
-      prevPayDate = payDateText;
-    }
+    if (memberDetails.isEmpty) continue;
 
-    final allMembers = event.members.map((m) => m.id).toSet();
-    final participants = e.participants.toSet();
-    final showParticipants = participants.length < allMembers.length;
+    buffer.writeln("💳 $payerName");
 
-    buffer.writeln("・${e.item}（${Utils.formatAmount(e.amount)}円）");
+    String? prevPayDate;
+    for (final e in memberDetails) {
+      final payDateText = (e.payDate != null && e.payDate!.isNotEmpty)
+          ? e.payDate
+          : "XXXX/XX/XX";
 
-    if (e.shares.isNotEmpty) {
-      if (showParticipants) {
-        buffer.writeln("  負担額:");
-        e.shares.forEach((memberId, amount) {
-          if (amount > 0) {
-            buffer.writeln(
-              "    ${Utils.memberName(memberId, event.members)} -> ${Utils.formatAmount(amount)}円",
-            );
+      if (payDateText != prevPayDate) {
+        buffer.writeln("支払日: $payDateText");
+        prevPayDate = payDateText;
+      }
+
+      final allMembers = event.members.map((m) => m.id).toSet();
+      final participants = e.participants.toSet();
+      final showParticipants = participants.length < allMembers.length;
+
+      buffer.writeln("・${e.item}（${Utils.formatAmount(e.amount)}円）");
+
+      if (e.shares.isNotEmpty) {
+        if (showParticipants) {
+          buffer.writeln("  負担金額:");
+          for (final m in event.members) {
+            final amount = e.shares[m.id] ?? 0;
+            if (amount > 0) {
+              buffer.writeln("    ${m.name} -> ${Utils.formatAmount(amount)}円");
+            }
           }
-        });
-      } else {
-        buffer.writeln(
-          "  負担額:${Utils.formatAmount(e.amount / allMembers.length)}円",
-        );
+        } else {
+          buffer.writeln(
+            "  負担金額:${Utils.formatAmount(e.amount / allMembers.length)}円",
+          );
+        }
       }
     }
+
+    buffer.writeln(""); // メンバーごとの区切り
   }
 
-  buffer.writeln("\n💵 メンバーごとの支払合計（単純集計）:");
-  for (final e in paidTotals.entries) {
-    buffer.writeln(
-      "・${Utils.memberName(e.key, event.members)}: ${Utils.formatAmount(e.value)}円",
-    );
+  buffer.writeln("\n💳 各メンバーの支払合計金額:");
+  for (final m in event.members) {
+    final amount = paidTotals[m.id] ?? 0;
+    buffer.writeln("・${m.name}: ${Utils.formatAmount(amount)}円");
   }
 
-  buffer.writeln("\n💳 メンバーごとの負担合計:");
-  for (final e in memberShareTotals.entries) {
-    buffer.writeln(
-      "・${Utils.memberName(e.key, event.members)}: ${Utils.formatAmount(e.value)}円",
-    );
+  buffer.writeln("\n💸 各メンバーの負担合計金額:");
+  for (final m in event.members) {
+    final amount = memberShareTotals[m.id] ?? 0;
+    buffer.writeln("・${m.name}: ${Utils.formatAmount(amount)}円");
   }
 
-  buffer.writeln("\n💴 メンバーごとの支払合計（精算後残高）:");
-  for (final e in totals.entries) {
-    final sign = e.value >= 0 ? '+' : '';
-    buffer.writeln(
-      "・${Utils.memberName(e.key, event.members)}: $sign${Utils.formatAmount(e.value)}円",
-    );
+  buffer.writeln("\n📊 メンバーごとの精算差額:");
+  for (final m in event.members) {
+    final balance = totals[m.id] ?? 0;
+    final sign = balance >= 0 ? '+' : '';
+    buffer.writeln("・${m.name}: $sign${Utils.formatAmount(balance)}円");
   }
 
-  buffer.writeln("\n📊 精算結果:");
+  buffer.writeln("\n📈 精算結果:");
   for (final s in settlements) {
     buffer.writeln("・$s");
   }

@@ -505,7 +505,8 @@ class _EventDetailPageState extends State<EventDetailPage> {
                     collapsedBackgroundColor: Theme.of(
                       context,
                     ).colorScheme.surface,
-                    children: paidTotals.entries.map((e) {
+                    children: _event.members.map((m) {
+                      final amount = paidTotals[m.id] ?? 0;
                       return Padding(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,
@@ -514,7 +515,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
                         child: Align(
                           alignment: Alignment.centerLeft,
                           child: Text(
-                            "${Utils.memberName(e.key, _event.members)}: ${Utils.formatAmount(e.value)}円",
+                            "${m.name}: ${Utils.formatAmount(amount)}円",
                           ),
                         ),
                       );
@@ -531,7 +532,8 @@ class _EventDetailPageState extends State<EventDetailPage> {
                     collapsedBackgroundColor: Theme.of(
                       context,
                     ).colorScheme.surface,
-                    children: memberShareTotals.entries.map((e) {
+                    children: _event.members.map((m) {
+                      final amount = memberShareTotals[m.id] ?? 0;
                       return Padding(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,
@@ -540,7 +542,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
                         child: Align(
                           alignment: Alignment.centerLeft,
                           child: Text(
-                            "${Utils.memberName(e.key, _event.members)}: ${Utils.formatAmount(e.value)}円",
+                            "${m.name}: ${Utils.formatAmount(amount)}円",
                           ),
                         ),
                       );
@@ -557,15 +559,16 @@ class _EventDetailPageState extends State<EventDetailPage> {
                     collapsedBackgroundColor: Theme.of(
                       context,
                     ).colorScheme.surface,
-                    children: balances.entries.map((e) {
-                      final color = e.value > 0
+                    children: _event.members.map((m) {
+                      final value = balances[m.id] ?? 0;
+                      final color = value > 0
                           ? Colors.green
-                          : (e.value < 0
+                          : (value < 0
                                 ? Colors.red
                                 : Theme.of(
                                     context,
                                   ).textTheme.bodyMedium?.color);
-                      final sign = e.value >= 0 ? '+' : '';
+                      final sign = value >= 0 ? '+' : '';
                       return Padding(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,
@@ -574,7 +577,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
                         child: Align(
                           alignment: Alignment.centerLeft,
                           child: Text(
-                            "${Utils.memberName(e.key, _event.members)}: $sign${Utils.formatAmount(e.value)}円",
+                            "${m.name}: $sign${Utils.formatAmount(value)}円",
                             style: TextStyle(color: color),
                           ),
                         ),

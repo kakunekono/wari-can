@@ -131,7 +131,7 @@ Widget buildExpenseSection(
   required void Function(Event updated) onUpdate,
   required bool isLockedByMe, // ✅ ロック判定を外から渡す
 }) {
-  final sortedDetails = sortDetails(event.details, event.members);
+  final memberOrder = event.members.map((m) => m.id).toList();
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
@@ -139,93 +139,109 @@ Widget buildExpenseSection(
         '支出明細',
         style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
       ),
-      ...sortedDetails.asMap().entries.expand((entry) {
-        final i = entry.key;
-        final e = entry.value;
-        final prevPayer = i > 0 ? sortedDetails[i - 1].payer : null;
-        final widgets = <Widget>[];
 
-        if (e.payer != prevPayer) {
+      ///
+      ...memberOrder.expand((memberId) {
+        final memberName = Utils.memberName(memberId, event.members);
+        // このメンバーの明細を抽出
+        final memberDetails =
+            event.details.where((d) => d.payer == memberId).toList()..sort((
+              a,
+              b,
+            ) {
+              // 同じメンバー内では日付→項目名でソート
+              final dateCompare = (a.payDate ?? '').compareTo(b.payDate ?? '');
+              if (dateCompare != 0) return dateCompare;
+              return a.item.compareTo(b.item);
+            });
+
+        if (memberDetails.isEmpty) return <Widget>[];
+
+        final widgets = <Widget>[
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              "💳 $memberName",
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.blueAccent,
+              ),
+            ),
+          ),
+        ];
+
+        for (var i = 0; i < memberDetails.length; i++) {
+          final e = memberDetails[i];
+          final allMemberIds = event.members.map((m) => m.id).toSet();
+          final participantIds = e.participants.toSet();
+          final showParticipants = participantIds.length < allMemberIds.length;
+
           widgets.add(
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Text(
-                "💳 ${Utils.memberName(e.payer, event.members)}",
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.blueAccent,
+            Card(
+              child: ListTile(
+                title: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      e.item,
+                      style: const TextStyle(
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      e.mode == "manual" ? Icons.tune : Icons.balance,
+                      size: 18,
+                      color: Colors.grey,
+                    ),
+                  ],
+                ),
+                subtitle: Text(
+                  [
+                    "支払者: $memberName",
+                    if (e.payDate != null && e.payDate!.isNotEmpty)
+                      "支払日: ${e.payDate}",
+                    "支払金額: ${Utils.formatAmount(e.amount)}円",
+                    "負担金額:",
+                    if (showParticipants) ...[
+                      for (final m in event.members)
+                        if ((e.shares[m.id] ?? 0) > 0)
+                          "  ${m.name} -> ${Utils.formatAmount(e.shares[m.id]!)}円",
+                    ] else
+                      " ${Utils.formatAmount(e.amount / participantIds.length)}円",
+                  ].join('\n'),
+                ),
+                trailing: Wrap(
+                  spacing: 8,
+                  children: [
+                    if (isLockedByMe) ...[
+                      IconButton(
+                        icon: const Icon(Icons.edit, color: Colors.orange),
+                        onPressed: () => addExpense(
+                          context,
+                          event,
+                          editExpense: e,
+                          editIndex: event.details.indexOf(e),
+                          onUpdate: onUpdate,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red),
+                        onPressed: () => deleteExpense(
+                          context,
+                          event,
+                          event.details.indexOf(e),
+                          onUpdate: onUpdate,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ),
           );
         }
-
-        final allMemberIds = event.members.map((m) => m.id).toSet();
-        final participantIds = e.participants.toSet();
-        final showParticipants = participantIds.length < allMemberIds.length;
-
-        widgets.add(
-          Card(
-            child: ListTile(
-              title: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    e.item,
-                    style: const TextStyle(
-                      decoration: TextDecoration.underline,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Icon(
-                    e.mode == "manual" ? Icons.tune : Icons.balance,
-                    size: 18,
-                    color: Colors.grey,
-                  ),
-                ],
-              ),
-              subtitle: Text(
-                [
-                  "支払者: ${Utils.memberName(e.payer, event.members)}",
-                  if (e.payDate != null && e.payDate!.isNotEmpty)
-                    "支払日: ${e.payDate}",
-                  "支払金額: ${Utils.formatAmount(e.amount)}円",
-                  "負担金額:",
-                  if (showParticipants) ...[
-                    for (final m in e.shares.entries)
-                      if (m.value > 0)
-                        "  ${Utils.memberName(m.key, event.members)} -> ${Utils.formatAmount(m.value)}円",
-                  ] else
-                    " ${Utils.formatAmount(e.amount / participantIds.length)}円",
-                ].join('\n'),
-              ),
-              trailing: Wrap(
-                spacing: 8,
-                children: [
-                  if (isLockedByMe) ...[
-                    IconButton(
-                      icon: const Icon(Icons.edit, color: Colors.orange),
-                      onPressed: () => addExpense(
-                        context,
-                        event,
-                        editExpense: e,
-                        editIndex: i,
-                        onUpdate: onUpdate,
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red),
-                      onPressed: () =>
-                          deleteExpense(context, event, i, onUpdate: onUpdate),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        );
-
         return widgets;
       }),
     ],
