@@ -83,16 +83,23 @@ class _EventDetailPageState extends State<EventDetailPage> {
         force: force,
       );
       if (!acquired) throw Exception('他ユーザーが編集中です');
+
+      // 🔽 ロック成功後に最新イベントを取得
+      final latest = await FirebaseFirestore.instance
+          .collection('events')
+          .doc(widget.event.id)
+          .get();
+
+      if (latest.exists) {
+        setState(() {
+          _event = Event.fromJson(latest.data()!); // ← State 内の変数を更新
+        });
+      }
+
       debugPrint("ロック取得成功: ${widget.event.id}");
     } on Exception catch (e) {
-      debugPrint("ロック取得失敗: ${ExceptionUtils.format(e)}");
-      // ✅ 他人がロック中ならエラー表示
-      showAppSnackBar(
-        context,
-        message: ExceptionUtils.format(e),
-        type: SnackBarType.warning,
-      );
-      // 追加のみ可能にするUI制御をここで入れる
+      final msg = ExceptionUtils.format(e);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     }
   }
 
@@ -157,6 +164,28 @@ class _EventDetailPageState extends State<EventDetailPage> {
         ),
       ),
     );
+  }
+
+  /// ロック取得前に確認ダイアログを表示し、ユーザーが承認したら true を返す
+  Future<bool> confirmLockAcquisition(BuildContext context) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('ロックを取得しますか？'),
+        content: const Text('最新の明細に更新され、入力中の内容は破棄される可能性があります。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('キャンセル'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('取得する'),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
   }
 
   @override
@@ -304,7 +333,12 @@ class _EventDetailPageState extends State<EventDetailPage> {
                       if (!snapshot.hasData || !snapshot.data!.exists) {
                         return TextButton(
                           onPressed: () async {
-                            await _acquireLockOnEnter(force: true);
+                            final confirmed = await confirmLockAcquisition(
+                              context,
+                            );
+                            if (confirmed) {
+                              await _acquireLockOnEnter(force: true);
+                            }
                           },
                           child: const Text('ロックを取得する'),
                         );
@@ -352,7 +386,11 @@ class _EventDetailPageState extends State<EventDetailPage> {
                               ),
                               TextButton(
                                 onPressed: () async {
-                                  await _acquireLockOnEnter(force: true);
+                                  final confirmed =
+                                      await confirmLockAcquisition(context);
+                                  if (confirmed) {
+                                    await _acquireLockOnEnter(force: true);
+                                  }
                                 },
                                 child: Text(
                                   'ロックを${isLockedByMe ? '再' : ''}取得する',
