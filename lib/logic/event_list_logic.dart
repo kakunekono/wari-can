@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -419,10 +420,16 @@ class EventListLogic {
       );
 
       // 最新データで画面を開く
-      await Navigator.push(
+      final updated = await Navigator.push<bool>(
         context,
         MaterialPageRoute(builder: (_) => EventDetailPage(event: updatedEvent)),
       );
+
+      debugPrint("イベント詳細ページから戻りました。更新: $updated");
+
+      if (updated == true) {
+        final loaded = await loadEventsAndUpdateLocalCache();
+      }
     } on Exception catch (e) {
       debugPrint('イベント取得エラー: ${ExceptionUtils.format(e)}');
       showAppSnackBar(

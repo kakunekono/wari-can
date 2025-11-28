@@ -214,7 +214,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
           onPopInvokedWithResult: (didPop, result) async {
             if (didPop) return;
             final confirmed = await _confirmSaveBeforePop();
-            if (confirmed) Navigator.pop(context);
+            if (confirmed) Navigator.pop(context, true);
           },
           child: Scaffold(
             appBar: AppBar(
@@ -664,7 +664,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
                         label: const Text("保存して戻る"),
                         onPressed: () async {
                           final allowPop = await _confirmSaveBeforePop();
-                          if (allowPop) Navigator.pop(context);
+                          if (allowPop) Navigator.pop(context, true);
                         },
                       ),
                       const SizedBox(width: 16), // ボタン間の余白
@@ -675,7 +675,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
                           backgroundColor: Colors.grey, // 区別しやすく色を変更
                         ),
                         onPressed: () {
-                          Navigator.pop(context); // 保存せずに戻る
+                          Navigator.pop(context, true); // 保存せずに戻る
                         },
                       ),
                     ],

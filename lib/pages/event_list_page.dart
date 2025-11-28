@@ -280,8 +280,10 @@ class _EventListPageState extends State<EventListPage> {
                                       '合計金額： ${Utils.formatAmount(e.details.fold(0, (sum, e) => sum + e.amount))}円',
                                     ].join("\n"),
                                   ),
-                                  onTap: () =>
-                                      _logic.openEventDetail(context, e),
+                                  onTap: () async {
+                                    await _logic.openEventDetail(context, e);
+                                    await _loadEvents();
+                                  },
                                   trailing: isWide
                                       ? Wrap(
                                           spacing: 8,
