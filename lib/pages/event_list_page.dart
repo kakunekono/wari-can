@@ -215,7 +215,7 @@ class _EventListPageState extends State<EventListPage> {
                 const SizedBox(width: 8),
                 ElevatedButton(
                   onPressed: () async {
-                    final newEvent = await _logic.addEvent(
+                    final newEvent = await _logic.addEventWithName(
                       context,
                       _controller.text,
                     );
@@ -252,7 +252,15 @@ class _EventListPageState extends State<EventListPage> {
                                   context,
                                   e,
                                   onUpdated: _loadEvents,
-                                  onDeleted: () async {},
+                                  onDeleted: () async {
+                                    setState(() {});
+                                    showAppSnackBar(
+                                      context,
+                                      message: 'イベント「${e.name}」を削除しました',
+                                      type: SnackBarType.info,
+                                    );
+                                    await _loadEvents();
+                                  },
                                 );
                             return Column(
                               crossAxisAlignment: CrossAxisAlignment.start,

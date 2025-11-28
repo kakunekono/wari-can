@@ -109,8 +109,29 @@ class EventListLogic {
     }
   }
 
+  /// 既存の Event を保存し、成功時は保存済み Event を返す
+  Future<Event?> addEvent(BuildContext context, Event event) async {
+    try {
+      // Firestore に保存
+      await FirebaseFirestore.instance
+          .collection('events')
+          .doc(event.id)
+          .set(event.toJson());
+
+      debugPrint("イベント保存成功: ${event.id}");
+      return event;
+    } on Exception catch (e) {
+      // 例外を整形してユーザーに通知
+      final msg = ExceptionUtils.format(e);
+      debugPrint("イベント保存失敗: $msg");
+
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      return null;
+    }
+  }
+
   /// 新しいイベントを作成して保存・返却する。
-  Future<Event?> addEvent(BuildContext context, String name) async {
+  Future<Event?> addEventWithName(BuildContext context, String name) async {
     final trimmed = name.trim();
     if (trimmed.isEmpty) {
       showAppSnackBar(
@@ -344,12 +365,13 @@ class EventListLogic {
       members: original.members
           .map((m) => m.copyWith(id: _uuid.v4(), createAt: now, updateAt: now))
           .toList(),
+      sharedWith: [],
       details: [],
       createAt: now,
       updateAt: now,
     );
 
-    await saveEventFlexible(context, newEvent);
+    await addEvent(context, newEvent);
     onUpdated();
     showAppSnackBar(
       context,
@@ -376,7 +398,7 @@ class EventListLogic {
       );
 
       if (!snapshot.exists || snapshot.data() == null) {
-        throw Exception('イベントが存在しません');
+        throw Exception('イベントが存在しません:${event.id}');
       }
 
       final data = snapshot.data()!;
