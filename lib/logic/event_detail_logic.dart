@@ -161,7 +161,8 @@ String buildShareText(Event event) {
           : "XXXX/XX/XX";
 
       if (payDateText != prevPayDate) {
-        buffer.writeln("支払日: $payDateText");
+        buffer.writeln(""); // 支払日ごとの区切り
+        buffer.writeln("[支払日: $payDateText]");
         prevPayDate = payDateText;
       }
 
@@ -173,7 +174,7 @@ String buildShareText(Event event) {
 
       if (e.shares.isNotEmpty) {
         if (showParticipants) {
-          buffer.writeln("  負担金額:");
+          buffer.writeln("  <負担金額>");
           for (final m in event.members) {
             final amount = e.shares[m.id] ?? 0;
             if (amount > 0) {
@@ -181,8 +182,9 @@ String buildShareText(Event event) {
             }
           }
         } else {
+          buffer.writeln("  <負担金額>");
           buffer.writeln(
-            "  負担金額:${Utils.formatAmount(e.amount / allMembers.length)}円",
+            "    全員均等負担: ${Utils.formatAmount(e.amount ~/ e.participants.length)}円",
           );
         }
       }

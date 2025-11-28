@@ -29,6 +29,7 @@ class _LoginInfoFooterState extends State<LoginInfoFooter> {
         .get();
 
     setState(() {
+      if (!mounted) return;
       _displayName = doc.data()?['name'] ?? user.displayName ?? null;
     });
   }
@@ -120,6 +121,7 @@ class _LoginInfoFooterState extends State<LoginInfoFooter> {
 
               if (newName != null && newName.isNotEmpty) {
                 setState(() {
+                  if (!mounted) return;
                   _displayName = newName; // ← Firestoreの値を優先して表示
                 });
               }
