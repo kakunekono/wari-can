@@ -4,7 +4,12 @@ class LockManager {
   static final _locks = FirebaseFirestore.instance.collection('locks');
 
   /// ロック取得（成功なら true、失敗なら false）
-  static Future<bool> acquireLock(String eventId, String uid) async {
+  static Future<bool> acquireLock(
+    String eventId,
+    String uid, {
+    String? ownerUid,
+    bool force = false,
+  }) async {
     final ref = _locks.doc(eventId);
     return await FirebaseFirestore.instance.runTransaction((tx) async {
       final snap = await tx.get(ref);
@@ -12,10 +17,14 @@ class LockManager {
       final expiresAt = snap.data()?['expiresAt']?.toDate();
       final lockedBy = snap.data()?['lockedBy'];
 
+      final isOwner = ownerUid != null && uid == ownerUid;
+
       if (!snap.exists ||
           expiresAt == null ||
           expiresAt.isBefore(now) ||
-          lockedBy == uid) {
+          lockedBy == uid ||
+          (force && isOwner) // オーナーかつ強制フラグがtrueの時のみ強制取得
+          ) {
         tx.set(ref, {
           'lockedBy': uid,
           'lockedAt': now,

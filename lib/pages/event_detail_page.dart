@@ -71,12 +71,17 @@ class _EventDetailPageState extends State<EventDetailPage> {
   }
 
   /// イベント詳細ページに入ったときにロックを取得する。
-  Future<void> _acquireLockOnEnter() async {
+  Future<void> _acquireLockOnEnter({bool force = false}) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
 
     try {
-      final acquired = await LockManager.acquireLock(widget.event.id, uid);
+      final acquired = await LockManager.acquireLock(
+        widget.event.id,
+        uid,
+        ownerUid: widget.event.ownerUid,
+        force: force,
+      );
       if (!acquired) throw Exception('他ユーザーが編集中です');
       debugPrint("ロック取得成功: ${widget.event.id}");
     } on Exception catch (e) {
@@ -299,7 +304,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
                       if (!snapshot.hasData || !snapshot.data!.exists) {
                         return TextButton(
                           onPressed: () async {
-                            await _acquireLockOnEnter();
+                            await _acquireLockOnEnter(force: true);
                           },
                           child: const Text('ロックを取得する'),
                         );
@@ -347,7 +352,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
                               ),
                               TextButton(
                                 onPressed: () async {
-                                  await _acquireLockOnEnter();
+                                  await _acquireLockOnEnter(force: true);
                                 },
                                 child: Text(
                                   'ロックを${isLockedByMe ? '再' : ''}取得する',

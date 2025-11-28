@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import 'package:wari_can/models/event.dart';
@@ -166,61 +167,70 @@ Widget buildMemberSection(
   required void Function(Event updated) onUpdate,
   required bool isLockedByMe,
 }) {
+  final isOwner = event.ownerUid == FirebaseAuth.instance.currentUser?.uid;
+
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: controller,
-              decoration: const InputDecoration(
-                labelText: 'メンバー名を入力',
-                border: OutlineInputBorder(),
+      if (isOwner) // オーナーのみ入力欄と追加ボタンを表示
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: controller,
+                decoration: const InputDecoration(
+                  labelText: 'メンバー名を入力',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              onPressed: () =>
+                  addMember(context, event, controller, onUpdate: onUpdate),
+              icon: const Icon(Icons.person_add, color: Colors.blue),
+            ),
+          ],
+        ),
+      const SizedBox(height: 12),
+      if (event.members.isEmpty)
+        const Text(
+          'メンバーが登録されていません',
+          style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
+        )
+      else
+        ...event.members.map(
+          (m) => Card(
+            child: ListTile(
+              title: Text(m.name),
+              trailing: Wrap(
+                spacing: 8,
+                children: [
+                  if (isOwner && isLockedByMe) ...[
+                    IconButton(
+                      onPressed: () => editMemberName(
+                        context,
+                        event,
+                        m.id,
+                        onUpdate: onUpdate,
+                      ),
+                      icon: const Icon(Icons.edit, color: Colors.orange),
+                    ),
+                    IconButton(
+                      onPressed: () => deleteMember(
+                        context,
+                        event,
+                        m.id,
+                        onUpdate: onUpdate,
+                      ),
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                    ),
+                  ],
+                ],
               ),
             ),
           ),
-          const SizedBox(width: 8),
-          IconButton(
-            onPressed: () =>
-                addMember(context, event, controller, onUpdate: onUpdate),
-            icon: const Icon(Icons.person_add, color: Colors.blue),
-          ),
-        ],
-      ),
-      const SizedBox(height: 12),
-      const Text(
-        'メンバー一覧',
-        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-      ),
-      ...event.members.map(
-        (m) => Card(
-          child: ListTile(
-            title: Text(m.name),
-            trailing: Wrap(
-              spacing: 8,
-              children: [
-                if (isLockedByMe) ...[
-                  IconButton(
-                    onPressed: () => editMemberName(
-                      context,
-                      event,
-                      m.id,
-                      onUpdate: onUpdate,
-                    ),
-                    icon: const Icon(Icons.edit, color: Colors.orange),
-                  ),
-                  IconButton(
-                    onPressed: () =>
-                        deleteMember(context, event, m.id, onUpdate: onUpdate),
-                    icon: const Icon(Icons.delete, color: Colors.red),
-                  ),
-                ],
-              ],
-            ),
-          ),
         ),
-      ),
     ],
   );
 }
