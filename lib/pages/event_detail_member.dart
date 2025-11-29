@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import 'package:wari_can/models/event.dart';
+import 'package:wari_can/models/menber.dart';
 import 'package:wari_can/utils/snackbar_utils.dart';
 
 /// メンバー追加・編集・削除に関するロジック群。

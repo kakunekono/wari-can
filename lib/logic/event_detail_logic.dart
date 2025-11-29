@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:wari_can/models/event.dart';
+import 'package:wari_can/models/expense.dart';
+import 'package:wari_can/models/menber.dart';
 import 'package:wari_can/utils/exception_utils.dart';
 import 'package:wari_can/utils/firestore_helper.dart';
 import 'package:wari_can/utils/snackbar_utils.dart';

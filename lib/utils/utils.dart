@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
-import 'package:wari_can/models/event.dart';
+import 'package:wari_can/models/menber.dart';
 
 /// ユーティリティ関数群（メンバー名変換、金額整形など）
 class Utils {
