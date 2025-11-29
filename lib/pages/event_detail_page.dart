@@ -252,127 +252,126 @@ class _EventDetailPageState extends State<EventDetailPage> {
 
       final url = "$baseUrl/event/$eventId?token=${link.token}";
 
-      await showDialog(
+      await showModalBottomSheet(
         context: context,
-        builder: (context) {
-          return AlertDialog(
-            title: const Text("招待リンク"),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SelectableText(url),
-                const SizedBox(height: 12),
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // コピーも自然サイズ
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        ElevatedButton.icon(
-                          icon: const Icon(Icons.copy),
-                          label: const Text("コピー"),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Theme.of(
-                              context,
-                            ).colorScheme.primary,
-                            foregroundColor: Theme.of(
-                              context,
-                            ).colorScheme.onPrimary,
-                          ),
-                          onPressed: () {
-                            Clipboard.setData(ClipboardData(text: url));
-                            Navigator.pop(context);
-                            showAppSnackBar(
-                              context,
-                              message: "リンクをコピーしました",
-                              type: SnackBarType.info,
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-
-                    // 下のボタン群も自然サイズで横並び
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        if (link.active)
-                          ElevatedButton.icon(
-                            icon: const Icon(Icons.block),
-                            label: const Text("解除"),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Theme.of(
-                                context,
-                              ).colorScheme.secondary,
-                              foregroundColor: Theme.of(
-                                context,
-                              ).colorScheme.onSecondary,
-                            ),
-                            onPressed: () async {
-                              await deactivateInviteLink(eventId);
-                              Navigator.pop(context);
-                              showAppSnackBar(
-                                context,
-                                message: "リンクを解除しました",
-                                type: SnackBarType.info,
-                              );
-                            },
-                          )
-                        else
-                          ElevatedButton.icon(
-                            icon: const Icon(Icons.refresh),
-                            label: const Text("再開"),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.green.shade600,
-                              foregroundColor: Colors.white,
-                            ),
-                            onPressed: () async {
-                              await activateInviteLink(eventId);
-                              Navigator.pop(context);
-                              showAppSnackBar(
-                                context,
-                                message: "リンクを再開しました",
-                                type: SnackBarType.info,
-                              );
-                            },
-                          ),
-                        ElevatedButton.icon(
-                          icon: const Icon(Icons.delete),
-                          label: const Text("削除"),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Theme.of(
-                              context,
-                            ).colorScheme.error,
-                            foregroundColor: Theme.of(
-                              context,
-                            ).colorScheme.onError,
-                          ),
-                          onPressed: () async {
-                            await deleteInviteLink(eventId);
-                            Navigator.pop(context);
-                            showAppSnackBar(
-                              context,
-                              message: "リンクを削除しました",
-                              type: SnackBarType.info,
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ],
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        builder: (context) => Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text("招待リンク", style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 12),
+              // リンク表示 + ボタン群
+              TextFormField(
+                initialValue: url,
+                readOnly: true,
+                decoration: InputDecoration(
+                  labelText: "招待リンク",
+                  border: OutlineInputBorder(),
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.copy),
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: url));
+                      Navigator.pop(context);
+                      showAppSnackBar(
+                        context,
+                        message: "リンクをコピーしました",
+                        type: SnackBarType.info,
+                      );
+                    },
+                  ),
                 ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                child: const Text("閉じる"),
-                onPressed: () => Navigator.pop(context),
+              ),
+              const SizedBox(height: 20),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                alignment: WrapAlignment.center,
+                children: [
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.copy),
+                    label: const Text("コピー"),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                    ),
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: url));
+                      Navigator.pop(context);
+                      showAppSnackBar(
+                        context,
+                        message: "リンクをコピーしました",
+                        type: SnackBarType.info,
+                      );
+                    },
+                  ),
+                  ElevatedButton.icon(
+                    icon: Icon(link.active ? Icons.block : Icons.refresh),
+                    label: Text(link.active ? "解除" : "再開"),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: link.active
+                          ? Theme.of(context).colorScheme.secondary
+                          : Colors.green.shade600,
+                      foregroundColor: link.active
+                          ? Theme.of(context).colorScheme.onSecondary
+                          : Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                    ),
+                    onPressed: () async {
+                      if (link.active) {
+                        await deactivateInviteLink(eventId);
+                        showAppSnackBar(
+                          context,
+                          message: "リンクを解除しました",
+                          type: SnackBarType.info,
+                        );
+                      } else {
+                        await activateInviteLink(eventId);
+                        showAppSnackBar(
+                          context,
+                          message: "リンクを再開しました",
+                          type: SnackBarType.info,
+                        );
+                      }
+                      Navigator.pop(context);
+                    },
+                  ),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.delete),
+                    label: const Text("削除"),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.error,
+                      foregroundColor: Theme.of(context).colorScheme.onError,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                    ),
+                    onPressed: () async {
+                      await deleteInviteLink(eventId);
+                      showAppSnackBar(
+                        context,
+                        message: "リンクを削除しました",
+                        type: SnackBarType.info,
+                      );
+                      Navigator.pop(context);
+                    },
+                  ),
+                ],
               ),
             ],
-          );
-        },
+          ),
+        ),
       );
     }
   }
