@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:wari_can/auth/auth_gate.dart';
 import 'package:wari_can/utils/snackbar_utils.dart';
+import 'dart:html' as html;
 
 class HomeWrapper extends StatefulWidget {
   final bool isDark;
@@ -58,6 +59,7 @@ class _HomeWrapperState extends State<HomeWrapper> {
         return;
       }
       await registerSharedUser(eventId);
+      html.window.history.replaceState(null, 'トップ', '/');
     }
   }
 
