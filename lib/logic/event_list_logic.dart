@@ -428,7 +428,7 @@ class EventListLogic {
       debugPrint("イベント詳細ページから戻りました。更新: $updated");
 
       if (updated == true) {
-        final loaded = await loadEventsAndUpdateLocalCache();
+        await loadEventsAndUpdateLocalCache();
       }
     } on Exception catch (e) {
       debugPrint('イベント取得エラー: ${ExceptionUtils.format(e)}');

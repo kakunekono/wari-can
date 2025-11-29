@@ -68,11 +68,4 @@ class Utils {
       return '$scheme://$host$basePath/';
     }
   }
-
-  static String _addParams(String baseUrl, Map<String, String> params) {
-    final query = params.entries
-        .map((e) => '${e.key}=${Uri.encodeComponent(e.value)}')
-        .join('&');
-    return '$baseUrl?$query';
-  }
 }

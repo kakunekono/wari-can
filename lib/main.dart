@@ -1,15 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wari_can/init/home_helper.dart';
 import 'package:wari_can/models/event.dart';
 import 'package:wari_can/pages/event_detail_page.dart';
-import 'package:wari_can/utils/snackbar_utils.dart';
 
 import 'firebase_options.dart';
-import 'auth/auth_gate.dart';
 import 'logic/event_migration.dart';
 
 /// アプリのエントリーポイント。

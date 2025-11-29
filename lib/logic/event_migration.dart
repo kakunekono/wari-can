@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:wari_can/utils/exception_utils.dart';
 import '../models/event.dart';
 
 /// ローカルに保存されたイベントに ownerUid / sharedWith を補完して再保存する。
@@ -28,6 +30,7 @@ Future<void> migrateLocalEventsIfNeeded() async {
       await prefs.setString(key, jsonEncode(updated.toJson()));
     } on Exception catch (e) {
       // 破損データなどはスキップ
+      debugPrint(ExceptionUtils.format((e)));
     }
   }
 }
