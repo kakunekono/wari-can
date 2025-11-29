@@ -59,13 +59,6 @@ class _EventListPageState extends State<EventListPage> {
     super.initState();
     _initializeOnce(); // 初期化時に一度だけ実行
     _loadEvents().then((_) {
-      // ログイン状態を通知（Web共有リンク用）
-      final user = FirebaseAuth.instance.currentUser;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        final message = user != null ? "ログイン成功 ✅ UID: ${user.uid}" : "ログイン失敗 ❌";
-        final barType = user != null ? SnackBarType.info : SnackBarType.error;
-        showAppSnackBar(context, message: message, type: barType);
-      });
       setState(() => _isReady = true);
     });
   }
@@ -85,10 +78,10 @@ class _EventListPageState extends State<EventListPage> {
   /// 初期化処理を一度だけ実行する。
   void _initializeOnce() async {
     if (_initialized) return;
-    _initialized = true;
 
     final reloaded = await reloadEventsFromFirestore(context);
     setState(() => _events = reloaded);
+    _initialized = true;
   }
 
   @override

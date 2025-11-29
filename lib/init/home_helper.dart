@@ -19,13 +19,27 @@ class HomeWrapper extends StatefulWidget {
 }
 
 class _HomeWrapperState extends State<HomeWrapper> {
+  bool _loginSnackShown = false;
+
   @override
   void initState() {
     super.initState();
     // フレーム描画後に一度だけ呼ぶ
     WidgetsBinding.instance.addPostFrameCallback((_) {
       handleInviteLink(context);
+      _showLoginSnackOnce(context);
     });
+  }
+
+  void _showLoginSnackOnce(BuildContext context) {
+    if (_loginSnackShown) return;
+    _loginSnackShown = true;
+
+    final user = FirebaseAuth.instance.currentUser;
+    final message = user != null ? "ログイン成功 ✅ UID: ${user.uid}" : "ログイン失敗 ❌";
+    final barType = user != null ? SnackBarType.info : SnackBarType.error;
+
+    showAppSnackBar(context, message: message, type: barType);
   }
 
   bool _inviteHandled = false;
