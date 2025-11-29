@@ -1,6 +1,12 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:wari_can/init/home_helper.dart';
+import 'package:wari_can/models/event.dart';
+import 'package:wari_can/pages/event_detail_page.dart';
+import 'package:wari_can/utils/snackbar_utils.dart';
 
 import 'firebase_options.dart';
 import 'auth/auth_gate.dart';
@@ -63,7 +69,31 @@ class _WariCanAppState extends State<WariCanApp> {
           brightness: Brightness.dark,
         ),
       ),
-      home: AuthGate(onToggleTheme: _toggleTheme, isDark: _isDark),
+      routes: {
+        '/eventDetail': (context) {
+          final args =
+              ModalRoute.of(context)!.settings.arguments
+                  as Map<String, dynamic>;
+          final eventId = args['eventId'] as String;
+          return FutureBuilder<Event>(
+            future: FirebaseFirestore.instance
+                .collection('events')
+                .doc(eventId)
+                .get()
+                .then((doc) => Event.fromJson(doc.data()!)),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) {
+                return const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                );
+              }
+              return EventDetailPage(event: snapshot.data!);
+            },
+          );
+        },
+      },
+
+      home: HomeWrapper(isDark: _isDark, onToggleTheme: _toggleTheme),
     );
   }
 }

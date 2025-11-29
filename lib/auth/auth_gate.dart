@@ -28,39 +28,15 @@ class AuthGate extends StatefulWidget {
 /// AuthGate のステート。
 class _AuthGateState extends State<AuthGate> {
   bool _inviteHandled = false;
-  Uri? _initialUri;
 
   @override
   void initState() {
     super.initState();
-    _loadInitialUri();
-  }
-
-  /// Web版で初期URIを取得する。
-  Future<void> _loadInitialUri() async {
-    if (kIsWeb) {
-      final uri = Uri.base;
-      if (uri.queryParameters.containsKey('eventId')) {
-        setState(() => _initialUri = uri);
-      }
-    }
   }
 
   /// 招待リンクからの参加処理を行う。
   Future<void> _handleInviteIfNeeded(User user) async {
-    if (_inviteHandled || _initialUri == null) return;
-
-    final eventId = _initialUri!.queryParameters['eventId'];
-    if (eventId != null) {
-      try {
-        await FirebaseFirestore.instance
-            .collection('events')
-            .doc(eventId)
-            .update({
-              'sharedWith': FieldValue.arrayUnion([user.uid]),
-            });
-      } catch (_) {}
-    }
+    if (_inviteHandled) return;
 
     setState(() => _inviteHandled = true);
 

@@ -11,15 +11,15 @@ void showAppSnackBar(
 
   switch (type) {
     case SnackBarType.info:
-      bgColor = Colors.blue;
+      bgColor = Theme.of(context).colorScheme.primary; // 情報 → プライマリカラー
       icon = Icons.info;
       break;
     case SnackBarType.warning:
-      bgColor = Colors.orange;
+      bgColor = Theme.of(context).colorScheme.secondary; // 警告 → セカンダリカラー
       icon = Icons.warning;
       break;
     case SnackBarType.error:
-      bgColor = Colors.red;
+      bgColor = Theme.of(context).colorScheme.error; // エラー → エラーカラー
       icon = Icons.error;
       break;
   }

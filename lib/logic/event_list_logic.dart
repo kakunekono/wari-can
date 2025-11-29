@@ -126,7 +126,7 @@ class EventListLogic {
       final msg = ExceptionUtils.format(e);
       debugPrint("イベント保存失敗: $msg");
 
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      showAppSnackBar(context, message: msg);
       return null;
     }
   }

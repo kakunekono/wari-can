@@ -1,9 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:uuid/uuid.dart';
 import 'package:wari_can/logic/lock_manager.dart';
 import 'package:wari_can/utils/exception_utils.dart';
 import 'package:wari_can/utils/firestore_helper.dart';
@@ -102,7 +102,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
       debugPrint("ロック取得成功: ${widget.event.id}");
     } on Exception catch (e) {
       final msg = ExceptionUtils.format(e);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      showAppSnackBar(context, message: msg);
     }
   }
 
@@ -122,51 +122,6 @@ class _EventDetailPageState extends State<EventDetailPage> {
   Future<bool> _confirmSaveBeforePop() async {
     final confirmed = await onWillPopConfirmSave(context, _event);
     return confirmed;
-  }
-
-  /// イベント共有リンクを表示するセクション（Web限定）
-  Widget buildShareSection(Event event, BuildContext context) {
-    if (!kIsWeb) {
-      return const Padding(
-        padding: EdgeInsets.all(16),
-        child: Text('この機能はWeb版でのみ利用可能です。', style: TextStyle(color: Colors.red)),
-      );
-    }
-
-    final inviteUrl = Utils.generateInviteUrl(event.id);
-
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 400),
-        child: Card(
-          margin: const EdgeInsets.all(16),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'イベント共有リンク',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                SelectableText(inviteUrl),
-                const SizedBox(height: 8),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.copy),
-                  label: const Text('リンクをコピー'),
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: inviteUrl));
-                    Navigator.pop(context, 'copied');
-                  },
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
   }
 
   /// ロック取得前に確認ダイアログを表示し、ユーザーが承認したら true を返す
@@ -191,6 +146,237 @@ class _EventDetailPageState extends State<EventDetailPage> {
     return result ?? false;
   }
 
+  Future<InviteLink> createInviteLink(String eventId) async {
+    final token = const Uuid().v4();
+    final newLink = InviteLink(
+      token: token,
+      role: "editor", // 必要に応じて "viewer" などに変更可能
+      createdAt: DateTime.now(),
+      active: true,
+    );
+
+    await FirebaseFirestore.instance
+        .collection('events')
+        .doc(eventId)
+        .collection('inviteLink')
+        .doc('current') // 常に1つだけ保持
+        .set(newLink.toJson());
+
+    return newLink;
+  }
+
+  Future<void> deleteInviteLink(String eventId) async {
+    final linkRef = FirebaseFirestore.instance
+        .collection('events')
+        .doc(eventId)
+        .collection('inviteLink')
+        .doc('current');
+
+    final snapshot = await linkRef.get();
+    if (!snapshot.exists) {
+      throw Exception("招待リンクが存在しません");
+    }
+
+    await linkRef.delete();
+  }
+
+  Future<void> deactivateInviteLink(String eventId) async {
+    await FirebaseFirestore.instance
+        .collection('events')
+        .doc(eventId)
+        .collection('inviteLink')
+        .doc('current')
+        .update({'active': false});
+  }
+
+  Future<void> activateInviteLink(String eventId) async {
+    await FirebaseFirestore.instance
+        .collection('events')
+        .doc(eventId)
+        .collection('inviteLink')
+        .doc('current')
+        .update({'active': true});
+  }
+
+  Future<void> _showInviteLinkDialog(
+    BuildContext context,
+    String eventId,
+  ) async {
+    final linkRef = FirebaseFirestore.instance
+        .collection('events')
+        .doc(eventId)
+        .collection('inviteLink')
+        .doc('current');
+
+    final snapshot = await linkRef.get();
+
+    if (!snapshot.exists) {
+      // 未発行 → 発行確認ダイアログ
+      await showDialog(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text("招待リンク"),
+            content: const Text("まだ招待リンクは発行されていません。発行しますか？"),
+            actions: [
+              TextButton(
+                child: const Text("キャンセル"),
+                onPressed: () => Navigator.pop(context),
+              ),
+              ElevatedButton(
+                child: const Text("発行"),
+                onPressed: () async {
+                  await createInviteLink(eventId);
+                  Navigator.pop(context);
+                  showAppSnackBar(
+                    context,
+                    message: "招待リンクを発行しました",
+                    type: SnackBarType.info,
+                  );
+                  _showInviteLinkDialog(context, eventId); // 再表示
+                },
+              ),
+            ],
+          );
+        },
+      );
+    } else {
+      // 発行済み → 表示・コピー・解除
+      final data = snapshot.data()!;
+      final link = InviteLink.fromJson(data);
+      // 環境ごとに baseUrl を切り替え
+      const String baseUrl = String.fromEnvironment(
+        'INVITE_BASE_URL',
+        defaultValue: 'http://localhost:8080',
+      );
+
+      final url = "$baseUrl/event/$eventId?token=${link.token}";
+
+      await showDialog(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text("招待リンク"),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SelectableText(url),
+                const SizedBox(height: 12),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // コピーも自然サイズ
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.copy),
+                          label: const Text("コピー"),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Theme.of(
+                              context,
+                            ).colorScheme.primary,
+                            foregroundColor: Theme.of(
+                              context,
+                            ).colorScheme.onPrimary,
+                          ),
+                          onPressed: () {
+                            Clipboard.setData(ClipboardData(text: url));
+                            Navigator.pop(context);
+                            showAppSnackBar(
+                              context,
+                              message: "リンクをコピーしました",
+                              type: SnackBarType.info,
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    // 下のボタン群も自然サイズで横並び
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        if (link.active)
+                          ElevatedButton.icon(
+                            icon: const Icon(Icons.block),
+                            label: const Text("解除"),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Theme.of(
+                                context,
+                              ).colorScheme.secondary,
+                              foregroundColor: Theme.of(
+                                context,
+                              ).colorScheme.onSecondary,
+                            ),
+                            onPressed: () async {
+                              await deactivateInviteLink(eventId);
+                              Navigator.pop(context);
+                              showAppSnackBar(
+                                context,
+                                message: "リンクを解除しました",
+                                type: SnackBarType.info,
+                              );
+                            },
+                          )
+                        else
+                          ElevatedButton.icon(
+                            icon: const Icon(Icons.refresh),
+                            label: const Text("再開"),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green.shade600,
+                              foregroundColor: Colors.white,
+                            ),
+                            onPressed: () async {
+                              await activateInviteLink(eventId);
+                              Navigator.pop(context);
+                              showAppSnackBar(
+                                context,
+                                message: "リンクを再開しました",
+                                type: SnackBarType.info,
+                              );
+                            },
+                          ),
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.delete),
+                          label: const Text("削除"),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Theme.of(
+                              context,
+                            ).colorScheme.error,
+                            foregroundColor: Theme.of(
+                              context,
+                            ).colorScheme.onError,
+                          ),
+                          onPressed: () async {
+                            await deleteInviteLink(eventId);
+                            Navigator.pop(context);
+                            showAppSnackBar(
+                              context,
+                              message: "リンクを削除しました",
+                              type: SnackBarType.info,
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                child: const Text("閉じる"),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          );
+        },
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final sortedDetails = List<Expense>.from(_event.details);
@@ -210,8 +396,6 @@ class _EventDetailPageState extends State<EventDetailPage> {
           return const Text("エラーが発生しました");
         }
 
-        final currentUser = FirebaseAuth.instance.currentUser;
-
         return PopScope(
           canPop: true,
           onPopInvokedWithResult: (didPop, result) async {
@@ -223,43 +407,21 @@ class _EventDetailPageState extends State<EventDetailPage> {
             appBar: AppBar(
               title: Text(_event.name),
               actions: [
-                // 自分がオーナーのときのみ共有リンク生成ボタンを表示
-                if (_event.ownerUid == currentUser?.uid)
+                if (_event.ownerUid == currentUserId)
                   IconButton(
                     icon: const Icon(Icons.link),
-                    tooltip: 'イベントを共有',
                     onPressed: () async {
-                      final result = await showDialog<String>(
-                        context: context,
-                        builder: (_) => AlertDialog(
-                          title: const Text('イベント共有'),
-                          content: ConstrainedBox(
-                            constraints: const BoxConstraints(
-                              maxWidth: 400,
-                              maxHeight: 300,
-                            ),
-                            child: SingleChildScrollView(
-                              child: buildShareSection(_event, context),
-                            ),
-                          ),
-                          actions: [
-                            TextButton(
-                              child: const Text('閉じる'),
-                              onPressed: () => Navigator.pop(context),
-                            ),
-                          ],
-                        ),
-                      );
-                      if (result == 'copied') {
+                      try {
+                        _showInviteLinkDialog(context, _event.id);
+                      } catch (e) {
                         showAppSnackBar(
                           context,
-                          message: '招待リンクをコピーしました',
-                          type: SnackBarType.info,
+                          message: "リンク作成に失敗しました: $e",
+                          type: SnackBarType.error,
                         );
                       }
                     },
                   ),
-
                 // 他の共有機能は誰でも利用可能
                 IconButton(
                   icon: const Icon(Icons.share),
@@ -384,8 +546,12 @@ class _EventDetailPageState extends State<EventDetailPage> {
                                 '編集中: $userName (有効期限: ${expiresAt.toLocal()})',
                                 style: TextStyle(
                                   color: isLockedByMe
-                                      ? Colors.lightGreen
-                                      : Colors.red,
+                                      ? Theme.of(context)
+                                            .colorScheme
+                                            .secondary // 自分がロック中 → セカンダリカラー
+                                      : Theme.of(
+                                          context,
+                                        ).colorScheme.error, // 他人がロック中 → エラーカラー
                                 ),
                               ),
                               TextButton(

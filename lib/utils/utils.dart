@@ -48,11 +48,6 @@ class Utils {
     return const Uuid().v4();
   }
 
-  static String generateInviteUrl(String eventId) {
-    final baseUrl = buildBaseUrl();
-    return _addParams(baseUrl, {'eventId': eventId});
-  }
-
   static String buildBaseUrl() {
     if (!kIsWeb) return '';
 

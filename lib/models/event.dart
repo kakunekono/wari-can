@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 /// タイムスタンプ付きエンティティの抽象クラス。
 /// createAt（作成日時）と updateAt（更新日時）を共通で持つ。
 abstract class TimestampedEntity {
@@ -26,6 +28,46 @@ abstract class TimestampedEntity {
     required DateTime originalCreateAt,
   }) {
     return {'createAt': originalCreateAt, 'updateAt': DateTime.now()};
+  }
+}
+
+/// 招待リンクを表すモデル。
+class InviteLink {
+  /// 招待リンクのトークン（UUIDなど）
+  final String token;
+
+  /// 権限スコープ（例: "editor", "viewer"）
+  final String role;
+
+  /// 作成日時
+  final DateTime createdAt;
+
+  /// 有効フラグ（falseなら無効化済み）
+  bool active;
+
+  InviteLink({
+    required this.token,
+    required this.role,
+    required this.createdAt,
+    this.active = true,
+  });
+
+  factory InviteLink.fromJson(Map<String, dynamic> json) {
+    return InviteLink(
+      token: json['token'] as String,
+      role: json['role'] as String,
+      createdAt: (json['createdAt'] as Timestamp).toDate(),
+      active: json['active'] as bool? ?? true,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'token': token,
+      'role': role,
+      'createdAt': Timestamp.fromDate(createdAt),
+      'active': active,
+    };
   }
 }
 
@@ -62,12 +104,11 @@ class Event extends TimestampedEntity {
     required this.sharedWith,
     this.startDate,
     this.endDate,
-    List<Member>? members,
-    List<Expense>? details,
+    this.members = const [],
+    this.details = const [],
     required super.createAt,
     required super.updateAt,
-  }) : members = members ?? [],
-       details = details ?? [];
+  });
 
   /// JSON形式に変換
   Map<String, dynamic> toJson() => {
@@ -122,6 +163,7 @@ extension EventCopy on Event {
     List<Expense>? details,
     DateTime? createAt,
     DateTime? updateAt,
+    InviteLink? inviteLink,
   }) {
     return Event(
       id: id ?? this.id,
