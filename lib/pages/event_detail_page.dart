@@ -36,6 +36,8 @@ class _EventDetailPageState extends State<EventDetailPage> {
   /// 編集対象のイベントデータ
   late Event _event;
 
+  bool _isLockedByMe = false;
+
   /// メンバー追加用のテキストコントローラ
   final TextEditingController _memberController = TextEditingController();
 
@@ -93,6 +95,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
       if (latest.exists) {
         setState(() {
           _event = Event.fromJson(latest.data()!); // ← State 内の変数を更新
+          _isLockedByMe = true;
         });
       }
 
@@ -278,13 +281,14 @@ class _EventDetailPageState extends State<EventDetailPage> {
             floatingActionButton: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                FloatingActionButton(
-                  heroTag: "btnAddExpense",
-                  mini: true,
-                  onPressed: () =>
-                      addExpense(context, _event, onUpdate: _updateEvent),
-                  child: const Icon(Icons.add),
-                ),
+                if (_isLockedByMe)
+                  FloatingActionButton(
+                    heroTag: "btnAddExpense",
+                    mini: true,
+                    onPressed: () =>
+                        addExpense(context, _event, onUpdate: _updateEvent),
+                    child: const Icon(Icons.add),
+                  ),
                 const SizedBox(height: 10), // ボタン間の余白
                 FloatingActionButton(
                   heroTag: "btnScrollToTop",
@@ -433,8 +437,24 @@ class _EventDetailPageState extends State<EventDetailPage> {
                           child: ListTile(
                             title: Text(name),
                             subtitle: Text(id),
-                            trailing: (_event.ownerUid == currentUserId)
-                                ? IconButton(
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (_event.ownerUid ==
+                                    id) // このユーザーがオーナーならラベルを表示
+                                  const Padding(
+                                    padding: EdgeInsets.only(right: 8.0),
+                                    child: Chip(
+                                      label: Text(
+                                        "オーナー",
+                                        style: TextStyle(color: Colors.white),
+                                      ),
+                                      backgroundColor: Colors.blue,
+                                    ),
+                                  ),
+                                if (_event.ownerUid ==
+                                    currentUserId) // 現在のユーザーがオーナーなら削除ボタンを表示
+                                  IconButton(
                                     icon: const Icon(
                                       Icons.remove_circle,
                                       color: Colors.red,
@@ -486,8 +506,9 @@ class _EventDetailPageState extends State<EventDetailPage> {
                                         }
                                       }
                                     },
-                                  )
-                                : null,
+                                  ),
+                              ],
+                            ),
                           ),
                         );
                       }).toList(),
@@ -512,7 +533,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
                           _event,
                           _memberController,
                           onUpdate: _updateEvent,
-                          isLockedByMe: true,
+                          isLockedByMe: _isLockedByMe,
                         ),
                       ),
                     ],
@@ -535,7 +556,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
                           context,
                           _event,
                           onUpdate: _updateEvent,
-                          isLockedByMe: true,
+                          isLockedByMe: _isLockedByMe,
                         ),
                       ),
                     ],
