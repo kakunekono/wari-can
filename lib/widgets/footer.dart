@@ -30,7 +30,7 @@ class _LoginInfoFooterState extends State<LoginInfoFooter> {
 
     setState(() {
       if (!mounted) return;
-      _displayName = doc.data()?['name'] ?? user.displayName ?? null;
+      _displayName = doc.data()?['name'] ?? user.displayName;
     });
   }
 

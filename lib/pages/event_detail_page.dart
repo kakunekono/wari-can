@@ -44,10 +44,13 @@ class _EventDetailPageState extends State<EventDetailPage> {
   final TextEditingController _memberController = TextEditingController();
 
   /// 共有中ユーザーの UID → 表示名 のマップ
-  Map<String, String> _sharedNames = {};
+  final Map<String, String> _sharedNames = {};
 
   /// スクロールコントローラ
   final ScrollController _scrollController = ScrollController();
+
+  /// 支出ID(String)をキー、開閉状態(bool)を値とするMap
+  final Map<String, bool> _accordionState = {};
 
   @override
   void initState() {
@@ -117,7 +120,10 @@ class _EventDetailPageState extends State<EventDetailPage> {
     for (final id in ids) {
       names[id] = await fetchUserName(id);
     }
-    setState(() => _sharedNames = names);
+    setState(() {
+      _sharedNames.clear();
+      _sharedNames.addAll(names);
+    });
   }
 
   /// 戻るときに保存確認を行う。
@@ -145,7 +151,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
         ],
       ),
     );
-    return result ?? false;
+    return result ?? true;
   }
 
   Future<InviteLink> createInviteLink(String eventId) async {
@@ -387,6 +393,28 @@ class _EventDetailPageState extends State<EventDetailPage> {
     final memberShareTotals = memberShareTotalsFunc(sortedDetails);
     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
 
+    // 共有中ユーザ
+    final sharedUserExpansionTile =
+        _accordionState["sharedUserExpansionTile"] ?? false;
+    // メンバー一覧
+    final memberListExpansionTile =
+        _accordionState["memberListExpansionTile"] ?? true;
+    // 支出明細
+    final expenseDetailsExpansionTile =
+        _accordionState["expenseDetailsExpansionTile"] ?? true;
+    // 各メンバーの支払合計金額
+    final paymentsExpansionTile =
+        _accordionState["paymentsExpansionTile"] ?? true;
+    // 各メンバーの負担合計金額
+    final liabilitiesExpansionTile =
+        _accordionState["liabilitiesExpansionTile"] ?? true;
+    //メンバーごとの精算差額
+    final memberBalancesExpansionTile =
+        _accordionState["memberBalancesExpansionTile"] ?? true;
+    // 精算
+    final settlementResultExpansionTile =
+        _accordionState["settlementResultExpansionTile"] ?? true;
+
     return FutureBuilder<bool>(
       future: LockManager.hasValidLock(_event.id, currentUserId!), // 非同期処理
       builder: (context, snapshot) {
@@ -589,6 +617,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
                   const SizedBox(height: 8),
 
                   if (_event.sharedWith.length > 1)
+                    // 共有中ユーザ
                     ExpansionTile(
                       title: const Text(
                         '共有中のユーザー',
@@ -597,6 +626,10 @@ class _EventDetailPageState extends State<EventDetailPage> {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
+                      initiallyExpanded: sharedUserExpansionTile,
+                      onExpansionChanged: (isExpanded) {
+                        _accordionState["sharedUserExpansionTile"] = isExpanded;
+                      },
                       children: _sharedNames.entries.map((entry) {
                         final id = entry.key;
                         final name = entry.value;
@@ -683,9 +716,13 @@ class _EventDetailPageState extends State<EventDetailPage> {
 
                   const Divider(height: 32),
 
+                  // メンバー一覧
                   ExpansionTile(
                     title: const Text('👥 メンバー一覧'),
-                    initiallyExpanded: true,
+                    initiallyExpanded: memberListExpansionTile,
+                    onExpansionChanged: (isExpanded) {
+                      _accordionState["memberListExpansionTile"] = isExpanded;
+                    },
                     backgroundColor: Theme.of(
                       context,
                     ).colorScheme.surfaceContainerHighest,
@@ -707,9 +744,14 @@ class _EventDetailPageState extends State<EventDetailPage> {
                   ),
                   const Divider(),
 
+                  // 支出明細
                   ExpansionTile(
                     title: const Text('💰 支出明細'),
-                    initiallyExpanded: true,
+                    initiallyExpanded: expenseDetailsExpansionTile,
+                    onExpansionChanged: (isExpanded) {
+                      _accordionState["expenseDetailsExpansionTile"] =
+                          isExpanded;
+                    },
                     backgroundColor: Theme.of(
                       context,
                     ).colorScheme.surfaceContainerHighest,
@@ -730,9 +772,13 @@ class _EventDetailPageState extends State<EventDetailPage> {
                   ),
                   const Divider(),
 
+                  // 各メンバーの支払合計金額
                   ExpansionTile(
                     title: const Text('💳 各メンバーの支払合計金額'),
-                    initiallyExpanded: true,
+                    initiallyExpanded: paymentsExpansionTile,
+                    onExpansionChanged: (isExpanded) {
+                      _accordionState["paymentsExpansionTile"] = isExpanded;
+                    },
                     backgroundColor: Theme.of(
                       context,
                     ).colorScheme.surfaceContainerHighest,
@@ -757,9 +803,13 @@ class _EventDetailPageState extends State<EventDetailPage> {
                   ),
                   const Divider(),
 
+                  // 各メンバーの負担合計金額
                   ExpansionTile(
                     title: const Text('💸 各メンバーの負担合計金額'),
-                    initiallyExpanded: true,
+                    initiallyExpanded: liabilitiesExpansionTile,
+                    onExpansionChanged: (isExpanded) {
+                      _accordionState["liabilitiesExpansionTile"] = isExpanded;
+                    },
                     backgroundColor: Theme.of(
                       context,
                     ).colorScheme.surfaceContainerHighest,
@@ -784,9 +834,14 @@ class _EventDetailPageState extends State<EventDetailPage> {
                   ),
                   const Divider(),
 
+                  // メンバーごとの精算差額
                   ExpansionTile(
                     title: const Text('📊 メンバーごとの精算差額'),
-                    initiallyExpanded: true,
+                    initiallyExpanded: memberBalancesExpansionTile,
+                    onExpansionChanged: (isExpanded) {
+                      _accordionState["memberBalancesExpansionTile"] =
+                          isExpanded;
+                    },
                     backgroundColor: Theme.of(
                       context,
                     ).colorScheme.surfaceContainerHighest,
@@ -820,9 +875,14 @@ class _EventDetailPageState extends State<EventDetailPage> {
                   ),
                   const Divider(),
 
+                  // 精算結果
                   ExpansionTile(
                     title: const Text('📈 精算結果'),
-                    initiallyExpanded: true,
+                    initiallyExpanded: settlementResultExpansionTile,
+                    onExpansionChanged: (isExpanded) {
+                      _accordionState["settlementResultExpansionTile"] =
+                          isExpanded;
+                    },
                     backgroundColor: Theme.of(
                       context,
                     ).colorScheme.surfaceContainerHighest,
