@@ -111,6 +111,7 @@ Future<void> deleteEventFlexible(
   try {
     switch (target) {
       case SaveTarget.firestoreOnly:
+        await _deleteInviteLinkSubcollection(eventId);
         await FirebaseFirestore.instance
             .collection("events")
             .doc(eventId)
@@ -127,6 +128,7 @@ Future<void> deleteEventFlexible(
         break;
 
       case SaveTarget.both:
+        await _deleteInviteLinkSubcollection(eventId);
         await FirebaseFirestore.instance
             .collection("events")
             .doc(eventId)
@@ -143,6 +145,26 @@ Future<void> deleteEventFlexible(
     debugPrint("イベント削除失敗: ${ExceptionUtils.format(e)}");
     rethrow;
   }
+}
+
+// サブコレクション 'inviteLink' 内のドキュメントをすべて削除する関数
+Future<void> _deleteInviteLinkSubcollection(String eventId) async {
+  final subCollectionRef = FirebaseFirestore.instance
+      .collection("events")
+      .doc(eventId)
+      .collection("inviteLink");
+
+  // サブコレクション内の全てのドキュメントを取得
+  final snapshot = await subCollectionRef.get();
+
+  // ドキュメントを一つずつ削除
+  final batch = FirebaseFirestore.instance.batch();
+  for (final doc in snapshot.docs) {
+    batch.delete(doc.reference);
+  }
+
+  await batch.commit();
+  debugPrint("サブコレクション 'inviteLink' のドキュメント削除完了: $eventId");
 }
 
 /// ローカルに保存されたすべてのイベントをFirestoreに一括アップロードします。
@@ -204,7 +226,11 @@ Future<void> uploadEventToCloud(
       type: SnackBarType.info,
     );
   } on Exception catch (e) {
-    showAppSnackBar(context, message: "アップロード失敗: ${ExceptionUtils.format(e)}", type: SnackBarType.error);
+    showAppSnackBar(
+      context,
+      message: "アップロード失敗: ${ExceptionUtils.format(e)}",
+      type: SnackBarType.error,
+    );
   }
 }
 
