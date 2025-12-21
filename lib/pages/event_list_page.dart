@@ -112,7 +112,7 @@ class _EventListPageState extends State<EventListPage> {
           ),
           IconButton(
             icon: const Icon(Icons.delete_forever),
-            tooltip: 'すべて削除',
+            tooltip: 'ローカルクリア',
             onPressed: () async {
               final cleared = await _logic.confirmDeleteAll(context);
               if (cleared) setState(() => _events.clear());

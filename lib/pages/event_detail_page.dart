@@ -258,7 +258,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
         defaultValue: 'http://localhost:8080',
       );
 
-      final url = "$baseUrl/event/$eventId?token=${link.token}";
+      final url = "$baseUrl?eventId=$eventId&token=${link.token}";
 
       await showModalBottomSheet(
         context: context,

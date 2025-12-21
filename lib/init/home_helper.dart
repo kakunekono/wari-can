@@ -49,37 +49,77 @@ class _HomeWrapperState extends State<HomeWrapper> {
     _inviteHandled = true;
 
     final uri = Uri.base;
-    if (uri.pathSegments.isNotEmpty && uri.pathSegments.first == "event") {
-      final eventId = uri.pathSegments[1];
-      final token = uri.queryParameters['token'] ?? "";
+    // queryParametersから値を取得
+    final eventId = uri.queryParameters['eventId'];
+    final token = uri.queryParameters['token'] ?? "";
 
+    debugPrint("Invite Link Params - eventId: $eventId, token: $token");
+
+    // idが存在する場合のみ処理を続行
+    if (eventId != null && eventId.isNotEmpty) {
       final isValid = await validateInviteLink(eventId, token);
+
       if (!isValid) {
         showAppSnackBar(context, message: "リンクが無効です", type: SnackBarType.error);
         return;
       }
+
+      debugPrint("Invite link is valid. Registering shared user...");
       await registerSharedUser(eventId);
+
+      // 処理完了後、クエリパラメータを消去してURLをクリーンにする
       html.window.history.replaceState(null, 'トップ', '/');
     }
   }
 
   Future<bool> validateInviteLink(String eventId, String token) async {
-    final doc = await FirebaseFirestore.instance
-        .collection('events')
-        .doc(eventId)
-        .collection('inviteLink')
-        .doc('current')
-        .get();
+    try {
+      // 1. コレクション・ドキュメントの参照を作成
+      final docRef = FirebaseFirestore.instance
+          .collection('events')
+          .doc(eventId)
+          .collection('inviteLink')
+          .doc('current');
 
-    if (!doc.exists) return false;
+      print('--- Debug: Fetching doc for eventId: $eventId ---');
 
-    final data = doc.data()!;
-    return data['token'] == token && data['active'] == true;
+      // 2. ドキュメントの取得
+      final doc = await docRef.get();
+
+      // 3. ドキュメントの存在確認
+      if (!doc.exists) {
+        print('Error: Document "current" does not exist for event: $eventId');
+        return false;
+      }
+
+      // 4. データの取り出し
+      final data = doc.data();
+      if (data == null) {
+        print('Error: Document data is null');
+        return false;
+      }
+
+      // 5. トークンの比較
+      final dbToken = data['token'] as String?;
+      print('Debug: DB Token = $dbToken, Input Token = $token');
+
+      if (dbToken == null) {
+        print('Error: Token field is missing in Firestore');
+        return false;
+      }
+
+      return dbToken == token;
+    } catch (e) {
+      // 6. エラー（権限不足やネットワークエラーなど）の捕捉
+      print('Exception caught: $e');
+      return false;
+    }
   }
 
   /// 共有ユーザのIDをイベントに追加
   Future<void> registerSharedUser(String eventId) async {
     final user = FirebaseAuth.instance.currentUser;
+    debugPrint("Registering shared user for eventId: $eventId");
     if (user == null) return; // 未ログインなら何もしない
     debugPrint("user:${user.uid}");
     await FirebaseFirestore.instance.collection('events').doc(eventId).update({

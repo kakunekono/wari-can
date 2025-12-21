@@ -169,9 +169,13 @@ Widget buildExpenseSection(
 
         for (var i = 0; i < memberDetails.length; i++) {
           final e = memberDetails[i];
-          final allMemberIds = event.members.map((m) => m.id).toSet();
-          final participantIds = e.participants.toSet();
-          final showParticipants = participantIds.length < allMemberIds.length;
+
+          // modeが'equal'なら全員参加なので、個別リストは表示しない
+          // modeが'manual'なら選択されたメンバーを表示する
+          //final showParticipants = e.mode != "equal";
+
+          // もしくは、より明示的に書く場合
+          final showParticipants = (e.mode == "manual");
 
           widgets.add(
             Card(
@@ -205,7 +209,7 @@ Widget buildExpenseSection(
                         if ((e.shares[m.id] ?? 0) > 0)
                           "  ${m.name} -> ${Utils.formatAmount(e.shares[m.id]!)}円",
                     ] else
-                      " ${Utils.formatAmount(e.amount / participantIds.length)}円",
+                      " ${Utils.formatAmount(e.amount / memberDetails.length)}円",
                   ].join('\n'),
                 ),
                 trailing: Wrap(
