@@ -1,5 +1,7 @@
 import 'package:wari_can/models/common.dart';
 
+enum SplitMode { manual, equal }
+
 /// 支出明細を表すモデル。
 class Expense extends TimestampedEntity {
   /// 明細ID（UUID）
@@ -21,7 +23,7 @@ class Expense extends TimestampedEntity {
   Map<String, int> shares;
 
   /// 分割モード（"manual" または "equal"）
-  String mode;
+  SplitMode mode;
 
   /// 支払日（任意、文字列）
   String? payDate;
@@ -33,7 +35,7 @@ class Expense extends TimestampedEntity {
     required this.amount,
     required this.participants,
     required this.shares,
-    this.mode = "manual",
+    this.mode = SplitMode.manual,
     this.payDate,
     required super.createAt,
     required super.updateAt,
@@ -47,7 +49,7 @@ class Expense extends TimestampedEntity {
     'amount': amount,
     'participants': participants,
     'shares': shares.isNotEmpty ? shares : null,
-    'mode': mode != "manual" ? mode : null,
+    'mode': mode.name,
     'payDate': payDate,
     ...toTimestampJson(),
   };
@@ -60,7 +62,13 @@ class Expense extends TimestampedEntity {
     amount: json['amount'],
     participants: List<String>.from(json['participants'] ?? []),
     shares: json['shares'] != null ? Map<String, int>.from(json['shares']) : {},
-    mode: json['mode'] ?? "manual",
+    // 安全に Enum へ変換
+    mode: SplitMode.values.firstWhere(
+      (e) =>
+          e.name == json['mode'] ||
+          json['mode']?.endsWith('.${e.name}') == true,
+      orElse: () => SplitMode.manual,
+    ),
     payDate: json['payDate'],
     createAt: DateTime.tryParse(json['createAt'] ?? '') ?? DateTime.now(),
     updateAt: DateTime.tryParse(json['updateAt'] ?? '') ?? DateTime.now(),
@@ -76,7 +84,7 @@ extension ExpenseCopy on Expense {
     int? amount,
     List<String>? participants,
     Map<String, int>? shares,
-    String? mode,
+    SplitMode? mode,
     String? payDate,
     DateTime? createAt,
     DateTime? updateAt,

@@ -57,7 +57,7 @@ Future<void> addExpense(
     amount: result['total'] ?? 0,
     participants: participants,
     shares: shares,
-    mode: result['mode'] ?? "manual",
+    mode: result['mode'] ?? SplitMode.manual,
     payDate: result['payDate'],
     createAt: editExpense?.createAt ?? now,
     updateAt: now,
@@ -170,12 +170,7 @@ Widget buildExpenseSection(
         for (var i = 0; i < memberDetails.length; i++) {
           final e = memberDetails[i];
 
-          // modeが'equal'なら全員参加なので、個別リストは表示しない
-          // modeが'manual'なら選択されたメンバーを表示する
-          //final showParticipants = e.mode != "equal";
-
-          // もしくは、より明示的に書く場合
-          final showParticipants = (e.mode == "manual");
+          final showParticipants = (e.mode == SplitMode.manual);
 
           widgets.add(
             Card(
@@ -191,7 +186,7 @@ Widget buildExpenseSection(
                     ),
                     const SizedBox(width: 4),
                     Icon(
-                      e.mode == "manual" ? Icons.tune : Icons.balance,
+                      e.mode == SplitMode.manual ? Icons.tune : Icons.balance,
                       size: 18,
                       color: Colors.grey,
                     ),

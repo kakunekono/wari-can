@@ -35,7 +35,8 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
   String? _payerId;
 
   /// 分割モード（"equal" または "manual"）
-  String _mode = "manual";
+  ///
+  SplitMode _mode = SplitMode.manual;
 
   @override
   void initState() {
@@ -45,7 +46,7 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
     _itemController.text = edit?.item ?? "";
     _totalController.text = edit?.amount.toString() ?? "0";
     _payDateController.text = edit?.payDate ?? "";
-    _mode = edit?.mode ?? "manual";
+    _mode = edit?.mode ?? SplitMode.manual;
     _payerId = edit?.payer;
 
     final amount = edit?.amount ?? 0;
@@ -63,7 +64,7 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
       _controllers[m.id] = TextEditingController(text: value.toString());
     }
 
-    if (_mode == "equal") {
+    if (_mode == SplitMode.equal) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _applyEqualSplit());
     }
     _itemController.addListener(() => setState(() {}));
@@ -94,7 +95,7 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
 
   /// 手動入力された負担額の合計を計算し、総額欄に反映します。
   void _updateTotalFromManualInput() {
-    if (_mode == "manual") {
+    if (_mode == SplitMode.manual) {
       int sum = 0;
       for (final m in widget.members) {
         final value = int.tryParse(_controllers[m.id]!.text) ?? 0;
@@ -148,7 +149,7 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
               decoration: const InputDecoration(labelText: "合計金額"),
               keyboardType: TextInputType.number,
               onChanged: (_) {
-                if (_mode == "equal") _applyEqualSplit();
+                if (_mode == SplitMode.equal) _applyEqualSplit();
                 setState(() {});
               },
             ),
@@ -189,9 +190,9 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
                 controller: _controllers[m.id],
                 decoration: InputDecoration(labelText: m.name),
                 keyboardType: TextInputType.number,
-                enabled: _mode == "manual", // 均等なら編集不可、手動なら編集可能
+                enabled: _mode == SplitMode.manual, // 均等なら編集不可、手動なら編集可能
                 onChanged: (_) {
-                  if (_mode == "manual") {
+                  if (_mode == SplitMode.manual) {
                     _updateTotalFromManualInput(); // 手動モード時のみ合計を更新
                   }
                 },
@@ -210,9 +211,9 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
                 Expanded(
                   child: ChoiceChip(
                     label: const Text("均等"),
-                    selected: _mode == "equal",
+                    selected: _mode == SplitMode.equal,
                     onSelected: (_) {
-                      setState(() => _mode = "equal");
+                      setState(() => _mode = SplitMode.equal);
                       _applyEqualSplit();
                     },
                   ),
@@ -221,8 +222,8 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
                 Expanded(
                   child: ChoiceChip(
                     label: const Text("手動"),
-                    selected: _mode == "manual",
-                    onSelected: (_) => setState(() => _mode = "manual"),
+                    selected: _mode == SplitMode.manual,
+                    onSelected: (_) => setState(() => _mode = SplitMode.manual),
                   ),
                 ),
               ],

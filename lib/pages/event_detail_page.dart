@@ -127,8 +127,8 @@ class _EventDetailPageState extends State<EventDetailPage> {
   }
 
   /// 戻るときに保存確認を行う。
-  Future<bool> _confirmSaveBeforePop() async {
-    final confirmed = await onWillPopConfirmSave(context, _event);
+  Future<bool> _confirmSaveBeforePop(bool onlySave) async {
+    final confirmed = await onWillPopConfirmSave(onlySave, context, _event);
     return confirmed;
   }
 
@@ -429,7 +429,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
           canPop: true,
           onPopInvokedWithResult: (didPop, result) async {
             if (didPop) return;
-            final confirmed = await _confirmSaveBeforePop();
+            final confirmed = await _confirmSaveBeforePop(false);
             if (confirmed) Navigator.pop(context, true);
           },
           child: Scaffold(
@@ -472,6 +472,14 @@ class _EventDetailPageState extends State<EventDetailPage> {
             floatingActionButton: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                if (_isLockedByMe)
+                  FloatingActionButton(
+                    heroTag: "btnSaveExpense",
+                    mini: true,
+                    onPressed: () => _confirmSaveBeforePop(true),
+                    child: const Icon(Icons.save),
+                  ),
+                const SizedBox(height: 10), // ボタン間の余白
                 if (_isLockedByMe)
                   FloatingActionButton(
                     heroTag: "btnAddExpense",
@@ -911,7 +919,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
                         icon: const Icon(Icons.arrow_back),
                         label: const Text("保存して戻る"),
                         onPressed: () async {
-                          final allowPop = await _confirmSaveBeforePop();
+                          final allowPop = await _confirmSaveBeforePop(false);
                           if (allowPop) Navigator.pop(context, true);
                         },
                       ),

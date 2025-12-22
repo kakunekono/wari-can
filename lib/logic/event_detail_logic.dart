@@ -54,7 +54,7 @@ Map<String, int> calcTotals(List<Expense> details, List<Member> members) {
   for (final e in details) {
     totals[e.payer] = (totals[e.payer] ?? 0) + e.amount;
 
-    if (e.mode == "manual" && e.shares.isNotEmpty) {
+    if (e.mode == SplitMode.manual && e.shares.isNotEmpty) {
       e.shares.forEach((memberId, share) {
         owes[memberId] = (owes[memberId] ?? 0) + share;
       });
@@ -232,12 +232,18 @@ String buildShareText(Event event) {
 ///
 /// ユーザーが「保存して戻る」を選択した場合は true を返し、
 /// 「キャンセル」を選択した場合は false を返します。
-Future<bool> onWillPopConfirmSave(BuildContext context, Event event) async {
+Future<bool> onWillPopConfirmSave(
+  bool onlySave,
+  BuildContext context,
+  Event event,
+) async {
   final confirmed = await showDialog<bool>(
     context: context,
     builder: (_) => AlertDialog(
       title: const Text("保存確認"),
-      content: const Text("編集内容を保存して戻りますか？"),
+      content: onlySave
+          ? const Text("編集内容しますか？")
+          : const Text("編集内容を保存して戻りますか？"),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context, false),
@@ -245,7 +251,7 @@ Future<bool> onWillPopConfirmSave(BuildContext context, Event event) async {
         ),
         ElevatedButton(
           onPressed: () => Navigator.pop(context, true),
-          child: const Text("保存して戻る"),
+          child: onlySave ? const Text("保存") : const Text("保存して戻る"),
         ),
       ],
     ),
