@@ -81,37 +81,39 @@ class _HomeWrapperState extends State<HomeWrapper> {
           .collection('inviteLink')
           .doc('current');
 
-      print('--- Debug: Fetching doc for eventId: $eventId ---');
+      debugPrint('--- Debug: Fetching doc for eventId: $eventId ---');
 
       // 2. ドキュメントの取得
       final doc = await docRef.get();
 
       // 3. ドキュメントの存在確認
       if (!doc.exists) {
-        print('Error: Document "current" does not exist for event: $eventId');
+        debugPrint(
+          'Error: Document "current" does not exist for event: $eventId',
+        );
         return false;
       }
 
       // 4. データの取り出し
       final data = doc.data();
       if (data == null) {
-        print('Error: Document data is null');
+        debugPrint('Error: Document data is null');
         return false;
       }
 
       // 5. トークンの比較
       final dbToken = data['token'] as String?;
-      print('Debug: DB Token = $dbToken, Input Token = $token');
+      debugPrint('Debug: DB Token = $dbToken, Input Token = $token');
 
       if (dbToken == null) {
-        print('Error: Token field is missing in Firestore');
+        debugPrint('Error: Token field is missing in Firestore');
         return false;
       }
 
       return dbToken == token;
     } catch (e) {
       // 6. エラー（権限不足やネットワークエラーなど）の捕捉
-      print('Exception caught: $e');
+      debugPrint('Exception caught: $e');
       return false;
     }
   }
