@@ -7,24 +7,28 @@ import 'package:wari_can/utils/snackbar_utils.dart';
 import '../pages/event_list_page.dart';
 import '../auth/google_auth_web.dart';
 
-/// ログイン方法選択ページ。
-///
-/// 匿名ログイン・Googleログイン・ローカルモード（未実装）を選択可能。
-class LoginChoicePage extends StatelessWidget {
+class LoginChoicePage extends StatefulWidget {
   final VoidCallback onToggleTheme;
   final bool isDark;
 
-  /// コンストラクタ。
   const LoginChoicePage({
     super.key,
     required this.onToggleTheme,
     required this.isDark,
   });
 
-  /// 匿名ログイン → 名前未設定なら入力画面、設定済みならイベント一覧へ遷移
-  Future<void> _handleAnonymousLogin(BuildContext context) async {
+  @override
+  State<LoginChoicePage> createState() => _LoginChoicePageState();
+}
+
+class _LoginChoicePageState extends State<LoginChoicePage> {
+  /// 匿名ログイン
+  Future<void> _handleAnonymousLogin() async {
     try {
       final cred = await FirebaseAuth.instance.signInAnonymously();
+      // awaitの後は常にmountedをチェック
+      if (!mounted) return;
+
       final user = cred.user;
       if (user == null) return;
 
@@ -32,34 +36,36 @@ class LoginChoicePage extends StatelessWidget {
           .collection('users')
           .doc(user.uid)
           .get();
+      if (!mounted) return;
 
       final name = doc.data()?['name'];
 
       if (name == null || (name is String && name.trim().isEmpty)) {
-        // 初回匿名ログイン → 名前入力画面へ
-        final result = await Navigator.push<String>(
+        await Navigator.push<String>(
           context,
-          MaterialPageRoute(builder: (_) => const NameInputScreen()),
+          MaterialPageRoute(
+            builder: (_) => NameInputScreen(
+              onToggleTheme: widget.onToggleTheme,
+              isDark: widget.isDark,
+            ),
+          ),
         );
-
-        // 名前入力画面から戻ってきたらイベント一覧へ
-        if (result != null && result.isNotEmpty) {
-          _navigateToEventList(context);
-        }
       } else {
-        // 名前設定済み → イベント一覧へ
-        _navigateToEventList(context);
+        _navigateToEventList();
       }
     } on Exception catch (e) {
-      _showError(context, '匿名ログイン失敗: ${ExceptionUtils.format(e)}');
+      if (!mounted) return;
+      _showError('匿名ログイン失敗: ${ExceptionUtils.format(e)}');
     }
   }
 
-  /// Googleログイン → Firestoreにユーザー情報保存 → イベント一覧ページへ遷移
-  Future<void> _handleGoogleLogin(BuildContext context) async {
+  /// Googleログイン
+  Future<void> _handleGoogleLogin() async {
     final result = await signInWithGoogleWeb();
+    if (!mounted) return;
+
     if (result == null) {
-      _showError(context, 'Googleログイン失敗');
+      _showError('Googleログイン失敗');
       return;
     }
 
@@ -69,6 +75,7 @@ class LoginChoicePage extends StatelessWidget {
           .collection('users')
           .doc(user.uid);
       final doc = await docRef.get();
+      if (!mounted) return;
 
       if (!doc.exists || doc.data()?['name'] == null) {
         await docRef.set({
@@ -77,14 +84,15 @@ class LoginChoicePage extends StatelessWidget {
           'updatedAt': FieldValue.serverTimestamp(),
           'isAnonymous': user.isAnonymous,
         }, SetOptions(merge: true));
+        if (!mounted) return;
       }
     }
 
-    _navigateToEventList(context);
+    _navigateToEventList();
   }
 
-  /// ローカルモード（未実装） → 作成中メッセージ表示
-  void _handleLocalMode(BuildContext context) {
+  /// ローカルモード
+  void _handleLocalMode() {
     showAppSnackBar(
       context,
       message: '🚧 この機能は現在作成中です',
@@ -93,18 +101,20 @@ class LoginChoicePage extends StatelessWidget {
   }
 
   /// イベント一覧ページへ遷移
-  void _navigateToEventList(BuildContext context) {
+  void _navigateToEventList() {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-            EventListPage(onToggleTheme: onToggleTheme, isDark: isDark),
+        builder: (_) => EventListPage(
+          onToggleTheme: widget.onToggleTheme,
+          isDark: widget.isDark,
+        ),
       ),
     );
   }
 
   /// エラーメッセージ表示
-  void _showError(BuildContext context, String message) {
+  void _showError(String message) {
     showAppSnackBar(context, message: message, type: SnackBarType.error);
   }
 
@@ -115,8 +125,8 @@ class LoginChoicePage extends StatelessWidget {
         title: const Text('ログイン方法を選択'),
         actions: [
           IconButton(
-            icon: Icon(isDark ? Icons.light_mode : Icons.dark_mode),
-            onPressed: onToggleTheme,
+            icon: Icon(widget.isDark ? Icons.light_mode : Icons.dark_mode),
+            onPressed: widget.onToggleTheme,
           ),
         ],
       ),
@@ -127,19 +137,19 @@ class LoginChoicePage extends StatelessWidget {
             _buildLoginButton(
               icon: Icons.person_outline,
               label: '匿名でログイン',
-              onPressed: () => _handleAnonymousLogin(context),
+              onPressed: _handleAnonymousLogin,
             ),
             const SizedBox(height: 16),
             _buildLoginButton(
               icon: Icons.login,
               label: 'Googleでログイン',
-              onPressed: () => _handleGoogleLogin(context),
+              onPressed: _handleGoogleLogin,
             ),
             const SizedBox(height: 16),
             _buildLoginButton(
               icon: Icons.wifi_off,
               label: 'ローカルモードで使う',
-              onPressed: () => _handleLocalMode(context),
+              onPressed: () => _handleLocalMode(),
             ),
           ],
         ),
@@ -147,7 +157,6 @@ class LoginChoicePage extends StatelessWidget {
     );
   }
 
-  /// ログインボタン共通ビルダー
   Widget _buildLoginButton({
     required IconData icon,
     required String label,

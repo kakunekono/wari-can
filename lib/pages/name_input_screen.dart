@@ -1,11 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:wari_can/pages/event_list_page.dart';
 import 'package:wari_can/utils/snackbar_utils.dart';
 
 /// 匿名ログインユーザーに表示名を入力させる画面。
 class NameInputScreen extends StatefulWidget {
-  const NameInputScreen({super.key});
+  final VoidCallback onToggleTheme;
+  final bool isDark;
+
+  const NameInputScreen({
+    super.key,
+    required this.onToggleTheme,
+    required this.isDark,
+  });
 
   @override
   State<NameInputScreen> createState() => _NameInputScreenState();
@@ -29,14 +37,31 @@ class _NameInputScreenState extends State<NameInputScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-      'name': name,
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-      'isAnonymous': user.isAnonymous,
-    }, SetOptions(merge: true));
+    try {
+      // 1. Firestoreへの保存を待機
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        'name': name,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+        'isAnonymous': user.isAnonymous,
+      }, SetOptions(merge: true));
 
-    Navigator.pop(context, name);
+      // 2. 保存中にユーザーが画面を閉じていないかチェック
+      if (!mounted) return;
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => EventListPage(
+            onToggleTheme: widget.onToggleTheme,
+            isDark: widget.isDark,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, message: '保存に失敗しました', type: SnackBarType.error);
+    }
   }
 
   @override

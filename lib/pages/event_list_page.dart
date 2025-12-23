@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:wari_can/pages/login_choice_page.dart';
@@ -6,6 +7,7 @@ import 'package:wari_can/widgets/footer.dart';
 import '../models/event.dart';
 import '../utils/utils.dart';
 import '../logic/event_list_logic.dart';
+import 'dart:html' as html;
 
 /// イベント一覧ページ。
 ///
@@ -79,9 +81,119 @@ class _EventListPageState extends State<EventListPage> {
   void _initializeOnce() async {
     if (_initialized) return;
 
+    await handleInviteLink(context);
+
     final reloaded = await reloadEventsFromFirestore(context);
+
     setState(() => _events = reloaded);
     _initialized = true;
+  }
+
+  bool _inviteHandled = false;
+  Future<void> handleInviteLink(BuildContext context) async {
+    if (_inviteHandled) return;
+    _inviteHandled = true;
+
+    final uri = Uri.base;
+    final eventId = uri.queryParameters['eventId'];
+    final token = uri.queryParameters['token'] ?? "";
+
+    if (eventId != null && eventId.isNotEmpty) {
+      // 1. リンクの妥当性確認
+      final isValid = await validateInviteLink(eventId, token);
+      if (!isValid) {
+        if (!mounted) return;
+        showAppSnackBar(context, message: "リンクが無効です", type: SnackBarType.error);
+        return;
+      }
+
+      // 2. ユーザー登録
+      await registerSharedUser(eventId);
+
+      // 3. ★ 遷移のために Firestore から Event オブジェクトを取得する
+      final eventDoc = await FirebaseFirestore.instance
+          .collection('events')
+          .doc(eventId)
+          .get();
+
+      if (!eventDoc.exists) {
+        if (!mounted) return;
+        showAppSnackBar(
+          context,
+          message: "イベントが見つかりませんでした",
+          type: SnackBarType.error,
+        );
+        return;
+      }
+
+      // URLをクリーンにする
+      html.window.history.replaceState(null, 'トップ', '/');
+
+      if (mounted) {
+        showAppSnackBar(
+          context,
+          message: "イベントに参加しました",
+          type: SnackBarType.info,
+        );
+      }
+    }
+  }
+
+  Future<bool> validateInviteLink(String eventId, String token) async {
+    try {
+      // 1. コレクション・ドキュメントの参照を作成
+      final docRef = FirebaseFirestore.instance
+          .collection('events')
+          .doc(eventId)
+          .collection('inviteLink')
+          .doc('current');
+
+      debugPrint('--- Debug: Fetching doc for eventId: $eventId ---');
+
+      // 2. ドキュメントの取得
+      final doc = await docRef.get();
+
+      // 3. ドキュメントの存在確認
+      if (!doc.exists) {
+        debugPrint(
+          'Error: Document "current" does not exist for event: $eventId',
+        );
+        return false;
+      }
+
+      // 4. データの取り出し
+      final data = doc.data();
+      if (data == null) {
+        debugPrint('Error: Document data is null');
+        return false;
+      }
+
+      // 5. トークンの比較
+      final dbToken = data['token'] as String?;
+      debugPrint('Debug: DB Token = $dbToken, Input Token = $token');
+
+      if (dbToken == null) {
+        debugPrint('Error: Token field is missing in Firestore');
+        return false;
+      }
+
+      return dbToken == token;
+    } catch (e) {
+      // 6. エラー（権限不足やネットワークエラーなど）の捕捉
+      debugPrint('Exception caught: $e');
+      return false;
+    }
+  }
+
+  /// 共有ユーザのIDをイベントに追加
+  Future<void> registerSharedUser(String eventId) async {
+    final user = FirebaseAuth.instance.currentUser;
+    debugPrint("Registering shared user for eventId: $eventId");
+    if (user == null) return; // 未ログインなら何もしない
+    debugPrint("user:${user.uid}");
+    await FirebaseFirestore.instance.collection('events').doc(eventId).update({
+      'sharedWith': FieldValue.arrayUnion([user.uid]),
+    });
   }
 
   @override

@@ -61,7 +61,10 @@ class _AuthGateState extends State<AuthGate> {
               // 匿名ユーザで名前未設定なら NameInputScreen を優先
               if (user.isAnonymous &&
                   (name == null || (name is String && name.trim().isEmpty))) {
-                return const NameInputScreen();
+                return NameInputScreen(
+                  onToggleTheme: widget.onToggleTheme,
+                  isDark: widget.isDark,
+                );
               }
 
               return EventListPage(
