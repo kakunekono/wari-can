@@ -1,6 +1,6 @@
 import 'package:wari_can/models/common.dart';
 import 'package:wari_can/models/expense.dart';
-import 'package:wari_can/models/inviteLink.dart';
+import 'package:wari_can/models/invite_link.dart';
 import 'package:wari_can/models/menber.dart';
 
 /// イベントデータを表すモデル。

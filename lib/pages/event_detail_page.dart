@@ -4,9 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:uuid/uuid.dart';
+import 'package:wari_can/models/settlement_report.dart';
 import 'package:wari_can/logic/lock_manager.dart';
-import 'package:wari_can/models/expense.dart';
-import 'package:wari_can/models/inviteLink.dart';
+import 'package:wari_can/models/invite_link.dart';
 import 'package:wari_can/utils/exception_utils.dart';
 import 'package:wari_can/utils/firestore_helper.dart';
 import 'package:wari_can/utils/snackbar_utils.dart';
@@ -386,34 +386,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    final sortedDetails = List<Expense>.from(_event.details);
-    final settlements = calcSettlement(sortedDetails, _event.members);
-    final balances = calcTotals(sortedDetails, _event.members);
-    final paidTotals = calcPaidTotals(sortedDetails, _event.members);
-    final memberShareTotals = memberShareTotalsFunc(sortedDetails);
     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
-
-    // 共有中ユーザ
-    final sharedUserExpansionTile =
-        _accordionState["sharedUserExpansionTile"] ?? false;
-    // メンバー一覧
-    final memberListExpansionTile =
-        _accordionState["memberListExpansionTile"] ?? true;
-    // 支出明細
-    final expenseDetailsExpansionTile =
-        _accordionState["expenseDetailsExpansionTile"] ?? true;
-    // 各メンバーの支払合計金額
-    final paymentsExpansionTile =
-        _accordionState["paymentsExpansionTile"] ?? true;
-    // 各メンバーの負担合計金額
-    final liabilitiesExpansionTile =
-        _accordionState["liabilitiesExpansionTile"] ?? true;
-    //メンバーごとの精算差額
-    final memberBalancesExpansionTile =
-        _accordionState["memberBalancesExpansionTile"] ?? true;
-    // 精算
-    final settlementResultExpansionTile =
-        _accordionState["settlementResultExpansionTile"] ?? true;
 
     return FutureBuilder<bool>(
       future: LockManager.hasValidLock(_event.id, currentUserId!), // 非同期処理
@@ -424,6 +397,15 @@ class _EventDetailPageState extends State<EventDetailPage> {
         if (snapshot.hasError) {
           return const Text("エラーが発生しました");
         }
+
+        // --- ロジックをここに統合 ---
+        final report = SettlementReport.calculate(_event);
+        // 既存の変数名を維持しつつ、reportから値を抽出
+        final paidTotals = report.paidTotals;
+        final memberShareTotals = report.shareTotals;
+        final balances = report.balances;
+        final settlements = report.settlementMessages;
+        // ------------------------
 
         return PopScope(
           canPop: true,
@@ -566,12 +548,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
                               ConnectionState.waiting) {
                             return const Text('ユーザー情報取得中...');
                           }
-                          if (!userSnapshot.hasData ||
-                              !userSnapshot.data!.exists) {
-                            return const Text('不明なユーザー');
-                          }
-
-                          final userData = userSnapshot.data!.data();
+                          final userData = userSnapshot.data?.data();
                           final userName = userData?['name'] ?? lockedBy;
                           final isLockedByMe = lockedBy == currentUserId;
 
@@ -583,12 +560,8 @@ class _EventDetailPageState extends State<EventDetailPage> {
                                 '編集中: $userName (有効期限: ${expiresAt.toLocal()})',
                                 style: TextStyle(
                                   color: isLockedByMe
-                                      ? Theme.of(context)
-                                            .colorScheme
-                                            .secondary // 自分がロック中 → セカンダリカラー
-                                      : Theme.of(
-                                          context,
-                                        ).colorScheme.error, // 他人がロック中 → エラーカラー
+                                      ? Theme.of(context).colorScheme.secondary
+                                      : Theme.of(context).colorScheme.error,
                                 ),
                               ),
                               TextButton(
@@ -634,7 +607,8 @@ class _EventDetailPageState extends State<EventDetailPage> {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      initiallyExpanded: sharedUserExpansionTile,
+                      initiallyExpanded:
+                          _accordionState["sharedUserExpansionTile"] ?? true,
                       onExpansionChanged: (isExpanded) {
                         _accordionState["sharedUserExpansionTile"] = isExpanded;
                       },
@@ -648,8 +622,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                if (_event.ownerUid ==
-                                    id) // このユーザーがオーナーならラベルを表示
+                                if (_event.ownerUid == id)
                                   const Padding(
                                     padding: EdgeInsets.only(right: 8.0),
                                     child: Chip(
@@ -660,8 +633,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
                                       backgroundColor: Colors.blue,
                                     ),
                                   ),
-                                if (_event.ownerUid ==
-                                    currentUserId) // 現在のユーザーがオーナーなら削除ボタンを表示
+                                if (_event.ownerUid == currentUserId)
                                   IconButton(
                                     icon: const Icon(
                                       Icons.remove_circle,
@@ -672,9 +644,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
                                         context: context,
                                         builder: (_) => AlertDialog(
                                           title: const Text("共有解除の確認"),
-                                          content: Text(
-                                            "このユーザー（$name）との共有を解除しますか？この変更は即反映されます。",
-                                          ),
+                                          content: Text("$name との共有を解除しますか？"),
                                           actions: [
                                             TextButton(
                                               onPressed: () =>
@@ -724,13 +694,13 @@ class _EventDetailPageState extends State<EventDetailPage> {
 
                   const Divider(height: 32),
 
-                  // メンバー一覧
+                  // 👥 メンバー一覧
                   ExpansionTile(
                     title: const Text('👥 メンバー一覧'),
-                    initiallyExpanded: memberListExpansionTile,
-                    onExpansionChanged: (isExpanded) {
-                      _accordionState["memberListExpansionTile"] = isExpanded;
-                    },
+                    initiallyExpanded:
+                        _accordionState["memberListExpansionTile"] ?? true,
+                    onExpansionChanged: (isExpanded) =>
+                        _accordionState["memberListExpansionTile"] = isExpanded,
                     backgroundColor: Theme.of(
                       context,
                     ).colorScheme.surfaceContainerHighest,
@@ -752,14 +722,14 @@ class _EventDetailPageState extends State<EventDetailPage> {
                   ),
                   const Divider(),
 
-                  // 支出明細
+                  // 💰 支出明細 (report.breakdowns を利用して詳細表示)
                   ExpansionTile(
                     title: const Text('💰 支出明細'),
-                    initiallyExpanded: expenseDetailsExpansionTile,
-                    onExpansionChanged: (isExpanded) {
-                      _accordionState["expenseDetailsExpansionTile"] =
-                          isExpanded;
-                    },
+                    initiallyExpanded:
+                        _accordionState["expenseDetailsExpansionTile"] ?? true,
+                    onExpansionChanged: (isExpanded) =>
+                        _accordionState["expenseDetailsExpansionTile"] =
+                            isExpanded,
                     backgroundColor: Theme.of(
                       context,
                     ).colorScheme.surfaceContainerHighest,
@@ -780,135 +750,91 @@ class _EventDetailPageState extends State<EventDetailPage> {
                   ),
                   const Divider(),
 
-                  // 各メンバーの支払合計金額
+                  // 💳 各メンバーの支払合計金額
                   ExpansionTile(
                     title: const Text('💳 各メンバーの支払合計金額'),
-                    initiallyExpanded: paymentsExpansionTile,
-                    onExpansionChanged: (isExpanded) {
-                      _accordionState["paymentsExpansionTile"] = isExpanded;
-                    },
+                    initiallyExpanded:
+                        _accordionState["paymentsExpansionTile"] ?? true,
+                    onExpansionChanged: (isExpanded) =>
+                        _accordionState["paymentsExpansionTile"] = isExpanded,
                     backgroundColor: Theme.of(
                       context,
                     ).colorScheme.surfaceContainerHighest,
-                    collapsedBackgroundColor: Theme.of(
-                      context,
-                    ).colorScheme.surface,
                     children: _event.members.map((m) {
                       final amount = paidTotals[m.id] ?? 0;
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 4,
-                        ),
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            "${m.name}: ${Utils.formatAmount(amount)}円",
-                          ),
+                      return ListTile(
+                        title: Text(
+                          "${m.name}: ${Utils.formatAmount(amount)}円",
                         ),
                       );
                     }).toList(),
                   ),
                   const Divider(),
 
-                  // 各メンバーの負担合計金額
+                  // 💸 各メンバーの負担合計金額
                   ExpansionTile(
                     title: const Text('💸 各メンバーの負担合計金額'),
-                    initiallyExpanded: liabilitiesExpansionTile,
-                    onExpansionChanged: (isExpanded) {
-                      _accordionState["liabilitiesExpansionTile"] = isExpanded;
-                    },
+                    initiallyExpanded:
+                        _accordionState["liabilitiesExpansionTile"] ?? true,
+                    onExpansionChanged: (isExpanded) =>
+                        _accordionState["liabilitiesExpansionTile"] =
+                            isExpanded,
                     backgroundColor: Theme.of(
                       context,
                     ).colorScheme.surfaceContainerHighest,
-                    collapsedBackgroundColor: Theme.of(
-                      context,
-                    ).colorScheme.surface,
                     children: _event.members.map((m) {
                       final amount = memberShareTotals[m.id] ?? 0;
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 4,
-                        ),
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            "${m.name}: ${Utils.formatAmount(amount)}円",
-                          ),
+                      return ListTile(
+                        title: Text(
+                          "${m.name}: ${Utils.formatAmount(amount)}円",
                         ),
                       );
                     }).toList(),
                   ),
                   const Divider(),
 
-                  // メンバーごとの精算差額
+                  // 📊 メンバーごとの精算差額
                   ExpansionTile(
                     title: const Text('📊 メンバーごとの精算差額'),
-                    initiallyExpanded: memberBalancesExpansionTile,
-                    onExpansionChanged: (isExpanded) {
-                      _accordionState["memberBalancesExpansionTile"] =
-                          isExpanded;
-                    },
+                    initiallyExpanded:
+                        _accordionState["memberBalancesExpansionTile"] ?? true,
+                    onExpansionChanged: (isExpanded) =>
+                        _accordionState["memberBalancesExpansionTile"] =
+                            isExpanded,
                     backgroundColor: Theme.of(
                       context,
                     ).colorScheme.surfaceContainerHighest,
-                    collapsedBackgroundColor: Theme.of(
-                      context,
-                    ).colorScheme.surface,
                     children: _event.members.map((m) {
                       final value = balances[m.id] ?? 0;
                       final color = value > 0
                           ? Colors.green
-                          : (value < 0
-                                ? Colors.red
-                                : Theme.of(
-                                    context,
-                                  ).textTheme.bodyMedium?.color);
+                          : (value < 0 ? Colors.red : null);
                       final sign = value >= 0 ? '+' : '';
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 4,
+                      return ListTile(
+                        title: Text(
+                          "${m.name}: $sign${Utils.formatAmount(value)}円",
                         ),
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            "${m.name}: $sign${Utils.formatAmount(value)}円",
-                            style: TextStyle(color: color),
-                          ),
-                        ),
+                        textColor: color,
                       );
                     }).toList(),
                   ),
                   const Divider(),
 
-                  // 精算結果
+                  // 📈 精算結果
                   ExpansionTile(
                     title: const Text('📈 精算結果'),
-                    initiallyExpanded: settlementResultExpansionTile,
-                    onExpansionChanged: (isExpanded) {
-                      _accordionState["settlementResultExpansionTile"] =
-                          isExpanded;
-                    },
+                    initiallyExpanded:
+                        _accordionState["settlementResultExpansionTile"] ??
+                        true,
+                    onExpansionChanged: (isExpanded) =>
+                        _accordionState["settlementResultExpansionTile"] =
+                            isExpanded,
                     backgroundColor: Theme.of(
                       context,
                     ).colorScheme.surfaceContainerHighest,
-                    collapsedBackgroundColor: Theme.of(
-                      context,
-                    ).colorScheme.surface,
-                    children: settlements.map((s) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 4,
-                        ),
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(s),
-                        ),
-                      );
-                    }).toList(),
+                    children: settlements
+                        .map((s) => ListTile(title: Text(s)))
+                        .toList(),
                   ),
                   const SizedBox(height: 24),
 
@@ -923,16 +849,14 @@ class _EventDetailPageState extends State<EventDetailPage> {
                           if (allowPop) Navigator.pop(context, true);
                         },
                       ),
-                      const SizedBox(width: 16), // ボタン間の余白
+                      const SizedBox(width: 16),
                       ElevatedButton.icon(
                         icon: const Icon(Icons.close),
                         label: const Text("保存しないで戻る"),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.grey, // 区別しやすく色を変更
+                          backgroundColor: Colors.grey,
                         ),
-                        onPressed: () {
-                          Navigator.pop(context, true); // 保存せずに戻る
-                        },
+                        onPressed: () => Navigator.pop(context, true),
                       ),
                     ],
                   ),

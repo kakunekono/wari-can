@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import 'package:wari_can/models/event.dart';
 import 'package:wari_can/models/expense.dart';
+import 'package:wari_can/models/settlement_report.dart';
 import 'package:wari_can/pages/event_detail_expense_input.dart';
 import 'package:wari_can/utils/snackbar_utils.dart';
 import 'package:wari_can/utils/utils.dart';
@@ -126,36 +127,35 @@ Future<void> deleteExpense(
 /// - 支払者ごとにグループ化された明細を表示します。
 /// - 各明細には編集・削除ボタンが付属します。
 /// - 他人がロック中の場合は編集・削除ボタンを非表示にします。
+/// 支出明細一覧セクションのUIを構築します。
 Widget buildExpenseSection(
   BuildContext context,
   Event event, {
   required void Function(Event updated) onUpdate,
-  required bool isLockedByMe, // ✅ ロック判定を外から渡す
+  required bool isLockedByMe,
 }) {
+  // SettlementReportを計算して、計算済みの負担内訳を取得
+  final report = SettlementReport.calculate(event);
+
+  // 支払者IDのリスト（表示順用）
   final memberOrder = event.members.map((m) => m.id).toList();
+
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      /// 支払者ごとに明細をグループ化して表示
       ...memberOrder.expand((memberId) {
         final memberName = Utils.memberName(memberId, event.members);
-        // このメンバーの明細を抽出
-        final memberDetails =
-            event.details.where((d) => d.payer == memberId).toList()..sort((
-              a,
-              b,
-            ) {
-              // 同じメンバー内では日付→項目名でソート
-              final dateCompare = (a.payDate ?? '').compareTo(b.payDate ?? '');
-              if (dateCompare != 0) return dateCompare;
-              return a.item.compareTo(b.item);
-            });
 
-        if (memberDetails.isEmpty) return <Widget>[];
+        // このメンバーが支払った明細の「計算結果（Breakdown）」のみを抽出
+        final memberBreakdowns = report.breakdowns
+            .where((b) => b.expense.payer == memberId)
+            .toList();
 
-        final widgets = <Widget>[
+        if (memberBreakdowns.isEmpty) return <Widget>[];
+
+        return [
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
             child: Text(
               "💳 $memberName",
               style: const TextStyle(
@@ -165,15 +165,13 @@ Widget buildExpenseSection(
               ),
             ),
           ),
-        ];
+          ...memberBreakdowns.map((breakdown) {
+            final e = breakdown.expense;
+            // event.details 内の実際のインデックスを取得（編集・削除用）
+            final actualIndex = event.details.indexOf(e);
 
-        for (var i = 0; i < memberDetails.length; i++) {
-          final e = memberDetails[i];
-
-          final showParticipants = (e.mode == SplitMode.manual);
-
-          widgets.add(
-            Card(
+            return Card(
+              margin: const EdgeInsets.symmetric(vertical: 4),
               child: ListTile(
                 title: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -186,58 +184,99 @@ Widget buildExpenseSection(
                     ),
                     const SizedBox(width: 4),
                     Icon(
-                      e.mode == SplitMode.manual ? Icons.tune : Icons.balance,
+                      breakdown.isManual ? Icons.tune : Icons.balance,
                       size: 18,
                       color: Colors.grey,
                     ),
                   ],
                 ),
-                subtitle: Text(
-                  [
-                    "支払者: $memberName",
-                    if (e.payDate != null && e.payDate!.isNotEmpty)
-                      "支払日: ${e.payDate}",
-                    "支払金額: ${Utils.formatAmount(e.amount)}円",
-                    "負担金額:",
-                    if (showParticipants) ...[
-                      for (final m in event.members)
-                        if ((e.shares[m.id] ?? 0) > 0)
-                          "  ${m.name} -> ${Utils.formatAmount(e.shares[m.id]!)}円",
-                    ] else
-                      " ${Utils.formatAmount(e.amount / memberDetails.length)}円",
-                  ].join('\n'),
-                ),
-                trailing: Wrap(
-                  spacing: 8,
-                  children: [
-                    if (isLockedByMe) ...[
-                      IconButton(
-                        icon: const Icon(Icons.edit, color: Colors.orange),
-                        onPressed: () => addExpense(
-                          context,
-                          event,
-                          editExpense: e,
-                          editIndex: event.details.indexOf(e),
-                          onUpdate: onUpdate,
+                subtitle: Padding(
+                  padding: const EdgeInsets.only(top: 4.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (e.payDate != null && e.payDate!.isNotEmpty)
+                        Text("支払日: ${e.payDate}"),
+                      Text("合計金額: ${Utils.formatAmount(e.amount)}円"),
+                      const SizedBox(height: 4),
+
+                      // 後半のロジックを適用
+                      if (breakdown.isManual || breakdown.isPartial) ...[
+                        const Text(
+                          "負担内訳:",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
                         ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.red),
-                        onPressed: () => deleteExpense(
-                          context,
-                          event,
-                          event.details.indexOf(e),
-                          onUpdate: onUpdate,
+                        ...breakdown.memberShares.map(
+                          (share) => Padding(
+                            padding: const EdgeInsets.only(left: 8.0),
+                            child: Text(
+                              "・${share.memberName}: ${Utils.formatAmount(share.amount)}円",
+                              style: const TextStyle(fontSize: 13),
+                            ),
+                          ),
                         ),
-                      ),
+                      ] else ...[
+                        const Text(
+                          "負担金額:",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(left: 8.0),
+                          child: Builder(
+                            builder: (context) {
+                              // 平均額の計算 (double)
+                              final average = e.participants.isNotEmpty
+                                  ? e.amount / e.participants.length
+                                  : 0.0;
+                              final formattedAvg = average.toStringAsFixed(2);
+
+                              return Text(
+                                "・1人あたり $formattedAvg円",
+                                style: const TextStyle(fontSize: 13),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
+                trailing: isLockedByMe
+                    ? Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.edit, color: Colors.orange),
+                            onPressed: () => addExpense(
+                              context,
+                              event,
+                              editExpense: e,
+                              editIndex: actualIndex,
+                              onUpdate: onUpdate,
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            onPressed: () => deleteExpense(
+                              context,
+                              event,
+                              actualIndex,
+                              onUpdate: onUpdate,
+                            ),
+                          ),
+                        ],
+                      )
+                    : null,
               ),
-            ),
-          );
-        }
-        return widgets;
+            );
+          }),
+        ];
       }),
     ],
   );

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:wari_can/models/event.dart';
 import 'package:wari_can/models/expense.dart';
 import 'package:wari_can/models/menber.dart';
+import 'package:wari_can/models/settlement_report.dart';
 import 'package:wari_can/utils/exception_utils.dart';
 import 'package:wari_can/utils/firestore_helper.dart';
 import 'package:wari_can/utils/snackbar_utils.dart';
@@ -133,13 +134,9 @@ List<String> calcSettlement(List<Expense> details, List<Member> members) {
 ///
 /// メンバー一覧、支出明細、支払合計、負担合計、精算結果を含みます。
 String buildShareText(Event event) {
-  final sortedDetails = sortDetails(event.details, event.members);
-  final totals = calcTotals(sortedDetails, event.members);
-  final paidTotals = calcPaidTotals(sortedDetails, event.members);
-  final settlements = calcSettlement(sortedDetails, event.members);
-  final memberShareTotals = memberShareTotalsFunc(sortedDetails);
-
+  final report = SettlementReport.calculate(event);
   final buffer = StringBuffer();
+
   buffer.writeln("📅 イベント名: ${event.name}\n");
   buffer.writeln("👥 参加者:");
   for (final m in event.members) {
@@ -149,77 +146,52 @@ String buildShareText(Event event) {
   buffer.writeln("\n――――――――――――――――――");
   buffer.writeln("💰 支出明細:");
 
+  // 支払者ごとにグルーピングして表示
   for (final m in event.members) {
-    final payerName = m.name;
-    final memberDetails = sortedDetails.where((e) => e.payer == m.id).toList();
-    if (memberDetails.isEmpty) continue;
+    final memberBreakdowns = report.breakdowns
+        .where((b) => b.expense.payer == m.id)
+        .toList();
+    if (memberBreakdowns.isEmpty) continue;
 
-    buffer.writeln("💳 $payerName");
-
-    String? prevPayDate;
-    for (final e in memberDetails) {
-      final payDateText = (e.payDate != null && e.payDate!.isNotEmpty)
-          ? e.payDate
-          : "XXXX/XX/XX";
-
-      if (payDateText != prevPayDate) {
-        buffer.writeln(""); // 支払日ごとの区切り
-        buffer.writeln("[支払日: $payDateText]");
-        prevPayDate = payDateText;
-      }
-
-      final allMembers = event.members.map((m) => m.id).toSet();
-      final participants = e.participants.toSet();
-      final showParticipants = participants.length < allMembers.length;
-
+    buffer.writeln("\n💳 ${m.name}");
+    for (final b in memberBreakdowns) {
+      final e = b.expense;
       buffer.writeln("・${e.item}（${Utils.formatAmount(e.amount)}円）");
 
-      if (e.shares.isNotEmpty) {
-        if (showParticipants) {
-          buffer.writeln("  <負担金額>");
-          for (final m in event.members) {
-            final amount = e.shares[m.id] ?? 0;
-            if (amount > 0) {
-              buffer.writeln("    ${m.name} -> ${Utils.formatAmount(amount)}円");
-            }
-          }
-        } else {
-          buffer.writeln("  <負担金額>");
+      if (b.isManual || b.isPartial) {
+        buffer.writeln("  負担内訳:");
+        for (final s in b.memberShares) {
           buffer.writeln(
-            "    全員均等負担: ${Utils.formatAmount(e.amount ~/ e.participants.length)}円",
+            "    ・${s.memberName}: ${Utils.formatAmount(s.amount)}円",
           );
         }
+      } else {
+        buffer.writeln("  負担金額:");
+        // 💡 修正ポイント: 除算結果を double として計算し、少数第2位まで表示
+        final average = e.participants.isNotEmpty
+            ? e.amount / e.participants.length
+            : 0.0;
+
+        // カンマ区切りをしつつ、小数点2桁を維持する表示
+        final formattedAvg = average.toStringAsFixed(2);
+        buffer.writeln("    ・ 1人あたり $formattedAvg円");
       }
     }
-    buffer.writeln(""); // メンバーごとの区切り
-  }
-
-  buffer.writeln("――――――――――――――――――");
-  buffer.writeln("💳 各メンバーの支払合計金額:");
-  for (final m in event.members) {
-    final amount = paidTotals[m.id] ?? 0;
-    buffer.writeln("・${m.name}: ${Utils.formatAmount(amount)}円");
-  }
-
-  buffer.writeln("\n――――――――――――――――――");
-  buffer.writeln("💸 各メンバーの負担合計金額:");
-  for (final m in event.members) {
-    final amount = memberShareTotals[m.id] ?? 0;
-    buffer.writeln("・${m.name}: ${Utils.formatAmount(amount)}円");
   }
 
   buffer.writeln("\n――――――――――――――――――");
   buffer.writeln("📊 メンバーごとの精算差額:");
   for (final m in event.members) {
-    final balance = totals[m.id] ?? 0;
-    final sign = balance >= 0 ? '+' : '';
-    buffer.writeln("・${m.name}: $sign${Utils.formatAmount(balance)}円");
+    final val = report.balances[m.id] ?? 0;
+    buffer.writeln(
+      "・${m.name}: ${val >= 0 ? '+' : ''}${Utils.formatAmount(val)}円",
+    );
   }
 
   buffer.writeln("\n――――――――――――――――――");
   buffer.writeln("📈 精算結果:");
-  for (final s in settlements) {
-    buffer.writeln("・$s");
+  for (final msg in report.settlementMessages) {
+    buffer.writeln("・$msg");
   }
 
   return buffer.toString();
