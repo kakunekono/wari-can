@@ -1,9 +1,7 @@
 ```bash title="GitPages公開"
-cd build/web
-flutter build web --release --base-href "/wari-can/" --pwa-strategy=none --dart-define=INVITE_BASE_URL=https://kakunekono.github.io/wari-can;
-git add .;
-git commit -m '`git rev-parse HEAD`';
-git push origin;
+cd build/web;
+
+flutter build web --release --base-href "/wari-can/" --pwa-strategy=none --dart-define=INVITE_BASE_URL=https://kakunekono.github.io/wari-can;git add .;git commit -m '`git rev-parse HEAD`';git push origin;
 ```
 
 ```bash title="ローカル起動"
