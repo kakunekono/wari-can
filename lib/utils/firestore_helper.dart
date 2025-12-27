@@ -1,5 +1,4 @@
 import 'dart:convert';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -9,26 +8,35 @@ import 'package:wari_can/utils/exception_utils.dart';
 import 'package:wari_can/utils/snackbar_utils.dart';
 import '../models/event.dart';
 
-/// イベント保存先の種類を指定するための列挙型。
+/// イベント保存先の戦略を指定する列挙型。
 enum SaveTarget { firestoreOnly, localOnly, both }
 
+/// イベントを保存する。
+///
+/// 1. ローカル保存 (SharedPreferences): オフライン時の閲覧やバックアップ用。
+/// 2. クラウド保存 (Firestore): 共有・同期用。
+///
+/// クラウド保存時は、競合を防ぐための「LockManagerによる有効性チェック」と
+/// 最新データに基づいた「権限チェック」を厳格に行います。
 Future<void> saveEventFlexible(
   BuildContext context,
   Event event, {
   SaveTarget target = SaveTarget.both,
 }) async {
+  // --- ローカル保存フェーズ ---
   if (target == SaveTarget.localOnly || target == SaveTarget.both) {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('event_${event.id}', event.toJson().toString());
+    await prefs.setString('event_${event.id}', jsonEncode(event.toJson()));
     debugPrint("ローカル保存完了: ${event.name}");
   }
 
+  // --- Firestore保存フェーズ ---
   if (target == SaveTarget.firestoreOnly || target == SaveTarget.both) {
     try {
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid == null) throw Exception('ログインユーザーが見つかりません');
 
-      // ✅ Firestoreから最新のイベント情報を取得
+      // 1. 最新のイベント情報を取得（他者による削除や共有解除の確認）
       final snapshot = await FirebaseFirestore.instance
           .collection("events")
           .doc(event.id)
@@ -40,7 +48,7 @@ Future<void> saveEventFlexible(
 
       final latestEvent = Event.fromJson(snapshot.data()!);
 
-      // ✅ 最新情報で権限チェック
+      // 2. 権限チェック（オーナーか、共有メンバーか）
       final isOwner = latestEvent.ownerUid == uid;
       final isSharedUser = latestEvent.sharedWith.contains(uid);
 
@@ -48,12 +56,13 @@ Future<void> saveEventFlexible(
         throw Exception('保存権限がありません: ${event.name}');
       }
 
-      // ✅ ロックの有効性を確認
+      // 3. ロックの有効性確認（他人が編集中ではないか）
       final valid = await LockManager.hasValidLock(event.id, uid);
       if (!valid) {
-        throw Exception("有効なロックを保持していません。保存できません。");
+        throw Exception("有効なロックを保持していません。他の方が編集中の可能性があります。");
       }
 
+      // 4. 最新データをベースに、変更内容を反映して保存
       final updated = latestEvent.copyWith(
         name: event.name,
         startDate: event.startDate,
@@ -77,10 +86,7 @@ Future<void> saveEventFlexible(
   }
 }
 
-/// Firestoreから指定IDのイベントを取得します。
-///
-/// [eventId] は取得対象のイベントID。
-/// 該当するイベントが存在すれば [Event] を返し、存在しない場合は `null` を返します。
+/// Firestoreから指定IDのイベントを取得。
 Future<Event?> fetchEventFromFirestore(String eventId) async {
   try {
     final snapshot = await FirebaseFirestore.instance
@@ -100,10 +106,8 @@ Future<Event?> fetchEventFromFirestore(String eventId) async {
   return null;
 }
 
-/// 指定された保存先からイベントを削除します。
-///
-/// [eventId] は削除対象のイベントID。
-/// [target] に応じて削除先を切り替えます。
+/// 指定された保存先からイベントを削除。
+/// サブコレクション（招待リンク等）のクリーンアップも併せて行います。
 Future<void> deleteEventFlexible(
   String eventId, {
   SaveTarget target = SaveTarget.firestoreOnly,
@@ -116,15 +120,11 @@ Future<void> deleteEventFlexible(
             .collection("events")
             .doc(eventId)
             .delete();
-        debugPrint("Firestoreからイベント削除完了: $eventId");
         break;
 
       case SaveTarget.localOnly:
-        // ✅ ローカル保存削除処理（例: SharedPreferencesやSQLite）
-        // 実装例:
-        // final prefs = await SharedPreferences.getInstance();
-        // await prefs.remove('event_$eventId');
-        debugPrint("ローカルからイベント削除完了: $eventId");
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove('event_$eventId');
         break;
 
       case SaveTarget.both:
@@ -133,44 +133,35 @@ Future<void> deleteEventFlexible(
             .collection("events")
             .doc(eventId)
             .delete();
-        debugPrint("Firestoreからイベント削除完了: $eventId");
-
-        // ローカル削除も実行
-        // final prefs = await SharedPreferences.getInstance();
-        // await prefs.remove('event_$eventId');
-        debugPrint("ローカルからイベント削除完了: $eventId");
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove('event_$eventId');
         break;
     }
+    debugPrint("イベント削除完了 ($target): $eventId");
   } on Exception catch (e) {
     debugPrint("イベント削除失敗: ${ExceptionUtils.format(e)}");
     rethrow;
   }
 }
 
-// サブコレクション 'inviteLink' 内のドキュメントをすべて削除する関数
+/// サブコレクション 'inviteLink' 内のドキュメントを一括削除。
 Future<void> _deleteInviteLinkSubcollection(String eventId) async {
   final subCollectionRef = FirebaseFirestore.instance
       .collection("events")
       .doc(eventId)
       .collection("inviteLink");
 
-  // サブコレクション内の全てのドキュメントを取得
   final snapshot = await subCollectionRef.get();
-
-  // ドキュメントを一つずつ削除
   final batch = FirebaseFirestore.instance.batch();
   for (final doc in snapshot.docs) {
     batch.delete(doc.reference);
   }
 
   await batch.commit();
-  debugPrint("サブコレクション 'inviteLink' のドキュメント削除完了: $eventId");
+  debugPrint("サブコレクション 'inviteLink' の一括削除完了");
 }
 
-/// ローカルに保存されたすべてのイベントをFirestoreに一括アップロードします。
-///
-/// [context] はSnackBar表示に使用されます。
-/// SharedPreferencesに保存された "event_" プレフィックス付きキーを対象にアップロードします。
+/// ローカルに一時保存された全イベントをクラウドに同期。
 Future<void> uploadLocalEventsToFirestore(BuildContext context) async {
   final prefs = await SharedPreferences.getInstance();
   final keys = prefs.getKeys().where((k) => k.startsWith('event_')).toList();
@@ -183,34 +174,27 @@ Future<void> uploadLocalEventsToFirestore(BuildContext context) async {
         await uploadEventToCloud(context, decoded);
       }
     }
-
     showAppSnackBar(
       context,
-      message: 'ローカルイベントをFirebaseに一括アップロードしました ✅',
+      message: '全ローカルデータを同期しました',
       type: SnackBarType.info,
     );
   } on Exception catch (e) {
     showAppSnackBar(
       context,
-      message: "アップロード中にエラーが発生しました: ${ExceptionUtils.format(e)}",
+      message: "同期失敗: ${ExceptionUtils.format(e)}",
       type: SnackBarType.error,
     );
   }
 }
 
-/// 単一のイベントデータをFirestoreにアップロードします。
-///
-/// [context] はSnackBar表示に使用されます。
-/// [eventData] はJSON形式のイベントデータ。`updateAt` は現在時刻に更新されます。
+/// 単一のイベントMapデータをFirestoreにアップロード。
 Future<void> uploadEventToCloud(
   BuildContext context,
   Map<String, dynamic> eventData,
 ) async {
   final id = eventData["id"];
-  if (id == null) {
-    debugPrint("イベントIDが存在しません");
-    return;
-  }
+  if (id == null) return;
 
   eventData["updateAt"] = DateTime.now().toIso8601String();
 
@@ -219,28 +203,17 @@ Future<void> uploadEventToCloud(
         .collection("events")
         .doc(id)
         .set(eventData, SetOptions(merge: true));
-
-    showAppSnackBar(
-      context,
-      message: 'クラウドにアップロードしました',
-      type: SnackBarType.info,
-    );
   } on Exception catch (e) {
     showAppSnackBar(
       context,
-      message: "アップロード失敗: ${ExceptionUtils.format(e)}",
+      message: "個別アップロード失敗: ${ExceptionUtils.format(e)}",
       type: SnackBarType.error,
     );
   }
 }
 
-/// Firestoreからすべてのイベントを取得する。
-Future<List<Event>> fetchAllEventsFromFirestore() async {
-  final snapshot = await FirebaseFirestore.instance.collection('events').get();
-  return snapshot.docs.map((doc) => Event.fromJson(doc.data())).toList();
-}
-
-/// 指定されたユーザーIDからユーザー名を取得します。
+/// 指定したUIDからユーザー名を取得。
+/// 取得できない場合はUIDをそのまま返し、画面が壊れるのを防ぎます。
 Future<String> fetchUserName(String uid) async {
   try {
     final doc = await FirebaseFirestore.instance
@@ -248,10 +221,10 @@ Future<String> fetchUserName(String uid) async {
         .doc(uid)
         .get();
     if (doc.exists) {
-      return doc.data()?['name'] ?? "@@@";
+      return doc.data()?['name'] ?? "不明なユーザー";
     }
   } on Exception catch (e) {
     debugPrint('名前取得失敗: ${ExceptionUtils.format(e)}');
   }
-  return uid; // 取得できなかった場合はIDを表示
+  return uid;
 }

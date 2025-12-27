@@ -6,7 +6,7 @@ import 'package:wari_can/utils/utils.dart';
 /// 支出明細の入力ダイアログ。
 ///
 /// 新規追加または既存明細の編集に使用されます。
-/// メンバーごとの負担額を均等割または手動で入力できます。
+/// 負担額を均等割または手動で入力できます。
 /// 保存時に Map を返し、外部でローカル保存や Firebase 連携を行う設計です。
 class ExpenseInputDialog extends StatefulWidget {
   /// メンバー一覧
@@ -26,6 +26,7 @@ class ExpenseInputDialog extends StatefulWidget {
 }
 
 class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
+  // --- コントローラ・状態変数 ---
   final _itemController = TextEditingController();
   final _totalController = TextEditingController(text: "0");
   final _payDateController = TextEditingController();
@@ -35,13 +36,16 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
   String? _payerId;
 
   /// 分割モード（"equal" または "manual"）
-  ///
   SplitMode _mode = SplitMode.manual;
+
+  /// 各コントローラに対応する FocusNode（全選択機能用）
+  final Map<String, FocusNode> _focusNodes = {};
 
   @override
   void initState() {
     super.initState();
 
+    // 1. 初期データのセット（編集時は既存値、新規時はデフォルト値）
     final edit = widget.editExpense;
     _itemController.text = edit?.item ?? "";
     _totalController.text = edit?.amount.toString() ?? "0";
@@ -53,34 +57,79 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
     final participants = edit?.participants ?? const [];
     final participantCount = participants.length;
 
+    // 2. メンバーごとの負担額入力フィールドとFocusNodeの初期化
     for (final m in widget.members) {
       final share = edit?.shares[m.id];
       final isParticipant = participants.contains(m.id);
+
+      // 初期金額の計算（既存データがあれば優先、なければ均等割の暫定値をセット）
       final value =
           share ??
           (isParticipant && participantCount > 0
               ? amount ~/ participantCount
               : 0);
+
       _controllers[m.id] = TextEditingController(text: value.toString());
+
+      // FocusNodeの設定：フォーカスが当たった時にテキストを全選択する
+      final node = FocusNode();
+      node.addListener(() {
+        if (node.hasFocus) {
+          _selectAllText(m.id);
+        }
+      });
+      _focusNodes[m.id] = node;
     }
 
+    // 均等割モードの場合、初期表示直後に計算を適用
     if (_mode == SplitMode.equal) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _applyEqualSplit());
     }
+
+    // リアルタイムバリデーションのためにリスナーを登録
     _itemController.addListener(() => setState(() {}));
     _totalController.addListener(() => setState(() {}));
     _payDateController.addListener(() => setState(() {}));
   }
 
-  /// 合計金額を取得します。
+  /// テキスト全選択処理
+  void _selectAllText(String memberId) {
+    final controller = _controllers[memberId];
+    if (controller != null && controller.text.isNotEmpty) {
+      Future.microtask(() {
+        controller.selection = TextSelection(
+          baseOffset: 0,
+          extentOffset: controller.text.length,
+        );
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    // メモリリーク防止のため全リソースを解放
+    _itemController.dispose();
+    _totalController.dispose();
+    _payDateController.dispose();
+    for (var c in _controllers.values) {
+      c.dispose();
+    }
+    for (var node in _focusNodes.values) {
+      node.dispose();
+    }
+    super.dispose();
+  }
+
+  /// 入力された総額（パース済み）
   int get total => int.tryParse(_totalController.text) ?? 0;
 
-  /// 各メンバーの負担額合計（subtotal）を取得します。
+  /// 各メンバーの負担額の合計（subtotal）
   int get subtotal => _controllers.values
       .map((c) => int.tryParse(c.text) ?? 0)
       .fold(0, (a, b) => a + b);
 
-  /// 均等割を適用し、端数は先頭に加算します。
+  /// 均等割の計算と適用
+  /// 割り切れない端数はリストの先頭メンバーから順に1円ずつ配分して調整
   void _applyEqualSplit() {
     if (widget.members.isEmpty) return;
     final per = (total / widget.members.length).floor();
@@ -93,7 +142,7 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
     });
   }
 
-  /// 手動入力された負担額の合計を計算し、総額欄に反映します。
+  /// 手動入力モード時、負担額の変化を総額に連動させる
   void _updateTotalFromManualInput() {
     if (_mode == SplitMode.manual) {
       int sum = 0;
@@ -106,17 +155,17 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
     setState(() {});
   }
 
-  /// 保存可能かどうかを判定します。
+  /// 保存可否判定（バリデーション）
   bool _canSave() {
-    if (subtotal != total) return false;
-    if (_payerId == null || _payerId!.isEmpty) return false;
-    if (_itemController.text.trim().isEmpty) return false;
+    if (subtotal != total) return false; // 合計不一致
+    if (_payerId == null || _payerId!.isEmpty) return false; // 支払者未選択
+    if (_itemController.text.trim().isEmpty) return false; // 項目名未入力
     final totalValue = int.tryParse(_totalController.text) ?? 0;
-    if (totalValue <= 0) return false;
+    if (totalValue <= 0) return false; // 0円以下
     return true;
   }
 
-  /// 保存処理を実行し、結果を返します。
+  /// 保存実行
   void _handleSave() {
     Navigator.pop(context, {
       'item': _itemController.text.trim(),
@@ -133,130 +182,200 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
   @override
   Widget build(BuildContext context) {
     final diff = subtotal - total;
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
-    return AlertDialog(
-      title: const Text("支出明細の入力"),
-      content: SingleChildScrollView(
-        child: Column(
-          children: [
-            TextField(
-              controller: _itemController,
-              decoration: const InputDecoration(labelText: "項目名"),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _totalController,
-              decoration: const InputDecoration(labelText: "合計金額"),
-              keyboardType: TextInputType.number,
-              onChanged: (_) {
-                if (_mode == SplitMode.equal) _applyEqualSplit();
-                setState(() {});
-              },
-            ),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              initialValue: _payerId,
-              items: widget.members
-                  .map(
-                    (m) => DropdownMenuItem(value: m.id, child: Text(m.name)),
-                  )
-                  .toList(),
-              onChanged: (value) => setState(() => _payerId = value),
-              decoration: const InputDecoration(labelText: "支払者"),
-            ),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: _payDateController,
-              readOnly: true,
-              decoration: const InputDecoration(labelText: "支払日（任意）"),
-              onTap: () async {
-                final picked = await showDatePicker(
-                  context: context,
-                  initialDate: DateTime.now(),
-                  firstDate: DateTime(2020),
-                  lastDate: DateTime(2100),
-                );
-                if (picked != null) {
-                  _payDateController.text =
-                      "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
-                }
-              },
-            ),
-            const SizedBox(height: 8),
-            const Divider(),
-            const Text("各メンバーの負担額"),
-            ...widget.members.map((m) {
-              return TextField(
-                controller: _controllers[m.id],
-                decoration: InputDecoration(labelText: m.name),
-                keyboardType: TextInputType.number,
-                enabled: _mode == SplitMode.manual, // 均等なら編集不可、手動なら編集可能
-                onChanged: (_) {
-                  if (_mode == SplitMode.manual) {
-                    _updateTotalFromManualInput(); // 手動モード時のみ合計を更新
-                  }
-                },
-              );
-            }),
-          ],
-        ),
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      actions: [
-        Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: ChoiceChip(
-                    label: const Text("均等"),
-                    selected: _mode == SplitMode.equal,
-                    onSelected: (_) {
-                      setState(() => _mode = SplitMode.equal);
-                      _applyEqualSplit();
+      padding: EdgeInsets.only(bottom: bottomInset),
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.9,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // --- タイトルエリア ---
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Text(
+              "支出明細の入力",
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+          ),
+          const Divider(height: 1),
+
+          // --- メイン入力エリア ---
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              child: Column(
+                children: [
+                  TextField(
+                    controller: _itemController,
+                    decoration: const InputDecoration(labelText: "項目名"),
+                    textInputAction: TextInputAction.next,
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _totalController,
+                    decoration: const InputDecoration(labelText: "合計金額"),
+                    keyboardType: TextInputType.number,
+                    onChanged: (_) {
+                      if (_mode == SplitMode.equal) _applyEqualSplit();
+                      setState(() {});
                     },
                   ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: ChoiceChip(
-                    label: const Text("手動"),
-                    selected: _mode == SplitMode.manual,
-                    onSelected: (_) => setState(() => _mode = SplitMode.manual),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    value: _payerId,
+                    items: widget.members
+                        .map(
+                          (m) => DropdownMenuItem(
+                            value: m.id,
+                            child: Text(m.name),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) => setState(() => _payerId = value),
+                    decoration: const InputDecoration(labelText: "支払者"),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              "合計: ${Utils.formatAmount(subtotal)}円\n"
-              "総額: ${Utils.formatAmount(total)}円\n"
-              "過不足: ${Utils.formatAmount(diff)}円",
-              style: TextStyle(
-                color: diff == 0 ? Colors.green : Colors.red,
-                fontWeight: FontWeight.bold,
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _payDateController,
+                    readOnly: true,
+                    decoration: const InputDecoration(labelText: "支払日（任意）"),
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: DateTime.now(),
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime(2100),
+                      );
+                      if (picked != null) {
+                        _payDateController.text =
+                            "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  const Divider(),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8.0),
+                    child: Text(
+                      "負担額",
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  // 各メンバーの負担額入力
+                  ...widget.members.map((m) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8.0),
+                      child: TextField(
+                        controller: _controllers[m.id],
+                        focusNode: _focusNodes[m.id], // フォーカス管理を適用
+                        decoration: InputDecoration(
+                          labelText: m.name,
+                          prefixText: "¥ ",
+                          filled: _mode == SplitMode.equal,
+                        ),
+                        keyboardType: TextInputType.number,
+                        textInputAction: TextInputAction.next,
+                        enabled: _mode == SplitMode.manual,
+                        onChanged: (_) {
+                          if (_mode == SplitMode.manual) {
+                            _updateTotalFromManualInput();
+                          }
+                        },
+                      ),
+                    );
+                  }),
+                ],
               ),
             ),
+          ),
 
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text("キャンセル"),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: _canSave() ? _handleSave : null,
-                  child: const Text("保存"),
+          // --- 操作・計算結果エリア ---
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.black12,
+                  blurRadius: 4,
+                  offset: Offset(0, -2),
                 ),
               ],
             ),
-          ],
-        ),
-      ],
+            child: SafeArea(
+              top: false,
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ChoiceChip(
+                          label: const Text("均等"),
+                          selected: _mode == SplitMode.equal,
+                          onSelected: (_) {
+                            setState(() => _mode = SplitMode.equal);
+                            _applyEqualSplit();
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ChoiceChip(
+                          label: const Text("手動"),
+                          selected: _mode == SplitMode.manual,
+                          onSelected: (_) =>
+                              setState(() => _mode = SplitMode.manual),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "合計: ${Utils.formatAmount(subtotal)} / 総額: ${Utils.formatAmount(total)}",
+                          ),
+                          Text(
+                            "過不足: ${Utils.formatAmount(diff)}",
+                            style: TextStyle(
+                              color: diff == 0 ? Colors.green : Colors.red,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text("キャンセル"),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton(
+                            onPressed: _canSave() ? _handleSave : null,
+                            child: const Text("保存"),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -382,7 +382,7 @@ class _EventListPageState extends State<EventListPage> {
                                       'イベントID： ${e.id}',
                                       'メンバー: ${e.members.length}人',
                                       '明細件数： ${e.details.length}件',
-                                      '合計金額： ${Utils.formatAmount(e.details.fold(0, (sum, e) => sum + e.amount))}円',
+                                      '合計金額： ${Utils.formatAmount(e.details.fold(0, (sum, e) => sum + e.amount))}',
                                     ].join("\n"),
                                   ),
                                   onTap: () async {

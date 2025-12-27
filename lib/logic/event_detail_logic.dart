@@ -8,15 +8,17 @@ import 'package:wari_can/utils/firestore_helper.dart';
 import 'package:wari_can/utils/snackbar_utils.dart';
 import 'package:wari_can/utils/utils.dart';
 
-/// 支出明細を支払者名・支払日・項目名の順でソートします。
+/// 支出明細を【支払者名】→【支払日】→【項目名】の順でソートします。
 List<Expense> sortDetails(List<Expense> details, List<Member> members) {
   final sorted = [...details];
   sorted.sort((a, b) {
+    // 1. 支払者名で比較
     final aName = Utils.memberName(a.payer, members);
     final bName = Utils.memberName(b.payer, members);
     final payerCompare = aName.compareTo(bName);
     if (payerCompare != 0) return payerCompare;
 
+    // 2. 支払日で比較（未入力は後ろへ）
     final aDate = a.payDate;
     final bDate = b.payDate;
     if (aDate == null && bDate != null) return 1;
@@ -26,14 +28,13 @@ List<Expense> sortDetails(List<Expense> details, List<Member> members) {
       if (dateCompare != 0) return dateCompare;
     }
 
+    // 3. 項目名で比較
     return a.item.compareTo(b.item);
   });
   return sorted;
 }
 
-/// 各メンバーの支払合計（単純集計）を計算します。
-///
-/// 支払者ごとの合計金額を集計し、未使用メンバーには 0 を設定します。
+/// 支払合計（単純集計）を計算します。
 Map<String, int> calcPaidTotals(List<Expense> details, List<Member> members) {
   final totals = <String, int>{};
   for (final e in details) {
@@ -45,9 +46,8 @@ Map<String, int> calcPaidTotals(List<Expense> details, List<Member> members) {
   return totals;
 }
 
-/// 各メンバーの精算後残高を計算します（支払額 - 負担額）。
-///
-/// 手動モードでは shares を使用し、均等モードでは参加者数で割り算します。
+/// 精算後残高を計算します（支払額 - 負担額）。
+/// ※ SettlementReport.calculate 内で同様の計算を行っていますが、単体計算用として維持。
 Map<String, int> calcTotals(List<Expense> details, List<Member> members) {
   final totals = <String, int>{};
   final owes = <String, int>{};
@@ -56,10 +56,12 @@ Map<String, int> calcTotals(List<Expense> details, List<Member> members) {
     totals[e.payer] = (totals[e.payer] ?? 0) + e.amount;
 
     if (e.mode == SplitMode.manual && e.shares.isNotEmpty) {
+      // 手動モード
       e.shares.forEach((memberId, share) {
         owes[memberId] = (owes[memberId] ?? 0) + share;
       });
     } else {
+      // 均等モード（端数は支払者が負担）
       if (e.participants.isEmpty) continue;
       final per = e.amount ~/ e.participants.length;
       final remainder = e.amount % e.participants.length;
@@ -76,9 +78,7 @@ Map<String, int> calcTotals(List<Expense> details, List<Member> members) {
   return balances;
 }
 
-/// 各メンバーの負担合計（sharesベース）を計算します。
-///
-/// 手動モードで入力された shares を集計します。
+/// 負担合計（sharesベース）を計算します。
 Map<String, int> memberShareTotalsFunc(List<Expense> details) {
   final totals = <String, int>{};
   for (final e in details) {
@@ -89,64 +89,21 @@ Map<String, int> memberShareTotalsFunc(List<Expense> details) {
   return totals;
 }
 
-/// 精算結果を計算し、送金指示のリストを返します。
-///
-/// 残高がマイナスの人からプラスの人へ送金する形式で整形します。
-List<String> calcSettlement(List<Expense> details, List<Member> members) {
-  final balances = calcTotals(details, members);
-
-  final payers = balances.entries
-      .where((e) => e.value < 0)
-      .map((e) => {'id': e.key, 'amount': -e.value})
-      .toList();
-
-  final receivers = balances.entries
-      .where((e) => e.value > 0)
-      .map((e) => {'id': e.key, 'amount': e.value})
-      .toList();
-
-  final result = <String>[];
-  for (final payer in payers) {
-    var amount = payer['amount'] as int;
-    for (final receiver in receivers) {
-      var recvAmount = receiver['amount'] as int;
-      if (recvAmount <= 0) continue;
-      final pay = amount < recvAmount ? amount : recvAmount;
-      if (pay > 0) {
-        final payerName = Utils.memberName(payer['id'] as String, members);
-        final receiverName = Utils.memberName(
-          receiver['id'] as String,
-          members,
-        );
-        result.add("$payerName → $receiverName に ${Utils.formatAmount(pay)}円");
-        amount -= pay;
-        receiver['amount'] = recvAmount - pay;
-        if (amount <= 0) break;
-      }
-    }
-  }
-
-  if (result.isEmpty) result.add("精算なし");
-  return result;
-}
-
-/// イベントの内容をテキスト形式で整形し、共有用文字列として返します。
-///
-/// メンバー一覧、支出明細、支払合計、負担合計、精算結果を含みます。
+/// イベントの内容をテキスト形式（LINEやメール共有用）で整形します。
 String buildShareText(Event event) {
   final report = SettlementReport.calculate(event);
   final buffer = StringBuffer();
+  const splitter = "――――――――――――――――――";
 
   buffer.writeln("📅 イベント名: ${event.name}\n");
-  buffer.writeln("👥 参加者:");
+  buffer.writeln("👥 メンバー一覧");
   for (final m in event.members) {
     buffer.writeln("・${m.name}");
   }
 
-  buffer.writeln("\n――――――――――――――――――");
-  buffer.writeln("💰 支出明細:");
+  buffer.writeln("\n$splitter");
+  buffer.writeln("💰 支出明細");
 
-  // 支払者ごとにグルーピングして表示
   for (final m in event.members) {
     final memberBreakdowns = report.breakdowns
         .where((b) => b.expense.payer == m.id)
@@ -156,40 +113,55 @@ String buildShareText(Event event) {
     buffer.writeln("\n💳 ${m.name}");
     for (final b in memberBreakdowns) {
       final e = b.expense;
-      buffer.writeln("・${e.item}（${Utils.formatAmount(e.amount)}円）");
+      buffer.writeln("・${e.item}（${Utils.formatAmount(e.amount)}）");
 
       if (b.isManual || b.isPartial) {
         buffer.writeln("  負担内訳:");
         for (final s in b.memberShares) {
           buffer.writeln(
-            "    ・${s.memberName}: ${Utils.formatAmount(s.amount)}円",
+            "    ・${s.memberName}: ${Utils.formatAmount(s.amount)}",
           );
         }
       } else {
         buffer.writeln("  負担金額:");
-        // 💡 修正ポイント: 除算結果を double として計算し、少数第2位まで表示
+        // 💡 修正ポイント: 除算結果を double として計算
         final average = e.participants.isNotEmpty
             ? e.amount / e.participants.length
             : 0.0;
 
-        // カンマ区切りをしつつ、小数点2桁を維持する表示
-        final formattedAvg = average.toStringAsFixed(2);
-        buffer.writeln("    ・ 1人あたり $formattedAvg円");
+        // カンマ区切りをしつつ、必要に応じて小数点を表示（例: 1,100.05円）
+        buffer.writeln("    ・ 1人あたり ${Utils.formatAmount(average)}");
       }
     }
   }
 
-  buffer.writeln("\n――――――――――――――――――");
-  buffer.writeln("📊 メンバーごとの精算差額:");
+  buffer.writeln("\n$splitter");
+  buffer.writeln("💳 支払合計金額");
+  for (final m in event.members) {
+    final val = report.paidTotals[m.id] ?? 0;
+    buffer.writeln("・${m.name}: ${Utils.formatAmount(val)}");
+  }
+
+  buffer.writeln("\n$splitter");
+  buffer.writeln("💸 負担合計金額");
+  for (final m in event.members) {
+    final val = report.shareTotals[m.id] ?? 0;
+    buffer.writeln("・${m.name}: ${Utils.formatAmount(val)}");
+  }
+
+  buffer.writeln("\n$splitter");
+  buffer.writeln("📊 精算差額");
   for (final m in event.members) {
     final val = report.balances[m.id] ?? 0;
+    // プラスの場合は明示的に「+」を付与
     buffer.writeln(
-      "・${m.name}: ${val >= 0 ? '+' : ''}${Utils.formatAmount(val)}円",
+      "・${m.name}: ${val >= 0 ? '+' : ''}${Utils.formatAmount(val)}",
     );
   }
 
-  buffer.writeln("\n――――――――――――――――――");
-  buffer.writeln("📈 精算結果:");
+  buffer.writeln("\n$splitter");
+  buffer.writeln("📈 精算結果");
+  // 精算結果ツリー（├, └）を結合して追加
   for (final msg in report.settlementMessages) {
     buffer.writeln("・$msg");
   }
@@ -197,13 +169,7 @@ String buildShareText(Event event) {
   return buffer.toString();
 }
 
-/// 戻る前に保存確認ダイアログを表示し、保存処理を行います。
-///
-/// [context] はダイアログ表示と保存に使用されます。
-/// [event] は保存対象のイベントデータです。
-///
-/// ユーザーが「保存して戻る」を選択した場合は true を返し、
-/// 「キャンセル」を選択した場合は false を返します。
+/// 戻る前に保存確認ダイアログを表示し、保存処理を実行します。
 Future<bool> onWillPopConfirmSave(
   bool onlySave,
   BuildContext context,
@@ -214,7 +180,7 @@ Future<bool> onWillPopConfirmSave(
     builder: (_) => AlertDialog(
       title: const Text("保存確認"),
       content: onlySave
-          ? const Text("編集内容しますか？")
+          ? const Text("編集内容を保存しますか？")
           : const Text("編集内容を保存して戻りますか？"),
       actions: [
         TextButton(
@@ -231,6 +197,7 @@ Future<bool> onWillPopConfirmSave(
 
   if (confirmed == true) {
     try {
+      // 外部ヘルパーを使用してFirebase等へ保存
       await saveEventFlexible(context, event);
       showAppSnackBar(context, message: '保存しました', type: SnackBarType.info);
     } on Exception catch (e) {
@@ -239,11 +206,12 @@ Future<bool> onWillPopConfirmSave(
         message: "保存に失敗しました: ${ExceptionUtils.format(e)}",
         type: SnackBarType.error,
       );
-      // ✅ 画面にとどまる → Navigator.pop は呼ばない
+      // 保存失敗時は画面を閉じないように false を返す
       return false;
     }
     return true;
   } else {
+    // ユーザーがキャンセルを選択した場合
     return false;
   }
 }

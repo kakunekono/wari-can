@@ -3,30 +3,34 @@ import 'package:wari_can/models/expense.dart';
 import 'package:wari_can/models/invite_link.dart';
 import 'package:wari_can/models/menber.dart';
 
-/// イベントデータを表すモデル。
+/// アプリの中心となるイベントデータを表すモデル。
+///
+/// [TimestampedEntity] を継承し、作成・更新日時を自動管理します。
+/// 1つのイベントの中に、複数の参加者（Members）と、複数の支出（Expenses）が含まれます。
 class Event extends TimestampedEntity {
-  /// イベントID（UUID）
+  /// イベントを一意に識別するID（UUID）
   final String id;
 
-  /// イベント名
+  /// イベントのタイトル（例：「東京旅行」「飲み会」）
   String name;
 
-  /// 作成者
+  /// Firestore上の所有者UID。このUIDを持つユーザーのみが削除や名前変更などの特権を持ちます。
   final String ownerUid;
 
-  /// 共有メンバーのUID一覧
+  /// 共有されたユーザーのUID一覧。ここにUIDが含まれるユーザーはイベントを閲覧・編集できます。
   final List<String> sharedWith;
 
-  /// 開始日（任意）
+  /// イベントの開催開始日（任意）
   DateTime? startDate;
 
-  /// 終了日（任意）
+  /// イベントの終了予定日（任意）
   DateTime? endDate;
 
-  /// 参加メンバー一覧
+  /// このイベントに参加しているメンバーのリスト。
+  /// 精算の計算対象となる人物データが含まれます。
   List<Member> members;
 
-  /// 支出明細一覧
+  /// イベント内で発生したすべての支出明細（経費）のリスト。
   List<Expense> details;
 
   Event({
@@ -42,7 +46,8 @@ class Event extends TimestampedEntity {
     required super.updateAt,
   });
 
-  /// JSON形式に変換
+  /// EventオブジェクトをMap（JSON）形式に変換します。
+  /// Firestoreへの保存や、ローカルのSharedPreferencesへの書き出しに使用します。
   Map<String, dynamic> toJson() => {
     'id': id,
     'name': name,
@@ -50,15 +55,17 @@ class Event extends TimestampedEntity {
     'sharedWith': sharedWith,
     'startDate': startDate?.toIso8601String(),
     'endDate': endDate?.toIso8601String(),
-    'members': members.map((m) => m.toJson()).toList(),
-    'details': details.map((e) => e.toJson()).toList(),
-    ...toTimestampJson(),
+    'members': members.map((m) => m.toJson()).toList(), // 子要素も再帰的にJSON化
+    'details': details.map((e) => e.toJson()).toList(), // 子要素も再帰的にJSON化
+    ...toTimestampJson(), // TimestampedEntity のメソッドを呼び出し
   };
 
-  /// JSONからEventを生成
+  /// JSON形式のMapからEventオブジェクトを生成（復元）します。
+  /// クラウドやローカルからのデータ読み込み時に使用します。
   static Event fromJson(Map<String, dynamic> json) => Event(
     id: json['id'],
     name: json['name'],
+    // 互換性のため、nullの場合は空文字や空リストをデフォルト値として設定
     ownerUid: json['ownerUid'] ?? '',
     sharedWith: (json['sharedWith'] as List<dynamic>?)?.cast<String>() ?? [],
     startDate: json['startDate'] != null
@@ -77,13 +84,18 @@ class Event extends TimestampedEntity {
             ?.map((e) => Expense.fromJson(e))
             .toList() ??
         [],
+    // タイムスタンプが取得できない場合は現在時刻をセット
     createAt: DateTime.tryParse(json['createAt'] ?? '') ?? DateTime.now(),
     updateAt: DateTime.tryParse(json['updateAt'] ?? '') ?? DateTime.now(),
   );
 }
 
-/// Eventのイミュータブルなコピーを作成するための拡張。
+/// Eventクラスにイミュータブルな更新機能（copyWith）を追加する拡張。
 extension EventCopy on Event {
+  /// 現在のEventの状態を引き継ぎつつ、一部のプロパティのみを書き換えた新しいインスタンスを生成します。
+  ///
+  /// Flutterの状態管理（State Management）において、再描画を促すために
+  /// インスタンスを新しく生成する際によく利用されます。
   Event copyWith({
     String? id,
     String? name,
@@ -95,7 +107,7 @@ extension EventCopy on Event {
     List<Expense>? details,
     DateTime? createAt,
     DateTime? updateAt,
-    InviteLink? inviteLink,
+    InviteLink? inviteLink, // 引数としては受け取るが、現在はインスタンスに反映しない
   }) {
     return Event(
       id: id ?? this.id,

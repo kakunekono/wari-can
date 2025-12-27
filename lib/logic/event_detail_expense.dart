@@ -13,10 +13,6 @@ import 'event_detail_logic.dart';
 /// 編集はローカルで完結し、保存時にのみ Firebase へ同期されます。
 
 /// 支出明細を追加または編集します。
-///
-/// - [editExpense] が指定されていれば編集モードとして動作します。
-/// - [editIndex] が指定されていれば既存明細を置き換えます。
-/// - 入力ダイアログで取得した情報を元に明細を構築し、イベントに追加または更新します。
 Future<void> addExpense(
   BuildContext context,
   Event event, {
@@ -24,6 +20,7 @@ Future<void> addExpense(
   int? editIndex,
   required void Function(Event updated) onUpdate,
 }) async {
+  // メンバーがいない状態での支出登録を防止
   if (event.members.isEmpty) {
     showAppSnackBar(
       context,
@@ -33,13 +30,17 @@ Future<void> addExpense(
     return;
   }
 
-  final result = await showDialog<Map<String, dynamic>>(
+  // 入力ダイアログを表示（ボトムシート形式）
+  final result = await showModalBottomSheet<Map<String, dynamic>>(
     context: context,
+    isScrollControlled: true, // キーボード表示時にコンテンツが隠れないよう調整
+    backgroundColor: Colors.transparent, // ダイアログ側の角丸デザインを透過させて活かす
     builder: (_) =>
         ExpenseInputDialog(members: event.members, editExpense: editExpense),
   );
   if (result == null) return;
 
+  // 負担額が設定されているメンバーのみを参加者として抽出
   final shares = Map<String, int>.from(result['shares']);
   final participants = shares.entries
       .where((e) => e.value > 0)
@@ -51,6 +52,8 @@ Future<void> addExpense(
   if (payerId.isEmpty) return;
 
   final now = DateTime.now();
+
+  // 新しい支出オブジェクトの生成（編集時は既存IDと作成日時を維持）
   final newExpense = Expense(
     id: editExpense?.id ?? const Uuid().v4(),
     item: result['item'] ?? "支出${event.details.length + 1}",
@@ -66,20 +69,20 @@ Future<void> addExpense(
 
   final updatedDetails = [...event.details];
   if (editIndex != null) {
+    // 編集：指定インデックスの要素を差し替え
     updatedDetails[editIndex] = newExpense;
   } else {
+    // 新規：末尾に追加
     updatedDetails.add(newExpense);
   }
 
+  // 常に定義された順序（支払者名・日付順など）でソートして整合性を保つ
   final sortedDetails = sortDetails(updatedDetails, event.members);
   final updated = event.copyWith(details: sortedDetails, updateAt: now);
   onUpdate(updated);
 }
 
 /// 支出明細を削除します。
-///
-/// - 削除確認ダイアログを表示し、承認された場合のみ削除します。
-/// - 削除後はローカル保存と Firebase 同期を行います。
 Future<void> deleteExpense(
   BuildContext context,
   Event event,
@@ -88,6 +91,7 @@ Future<void> deleteExpense(
 }) async {
   final expense = event.details[index];
 
+  // 誤操作防止の削除確認
   final confirmed = await showDialog<bool>(
     context: context,
     builder: (_) => AlertDialog(
@@ -109,6 +113,7 @@ Future<void> deleteExpense(
 
   if (confirmed != true) return;
 
+  // リストから対象を削除してソート
   final updatedDetails = List<Expense>.from(event.details)..removeAt(index);
   final sortedDetails = sortDetails(updatedDetails, event.members);
   final now = DateTime.now();
@@ -124,20 +129,18 @@ Future<void> deleteExpense(
 
 /// 支出明細一覧セクションのUIを構築します。
 ///
-/// - 支払者ごとにグループ化された明細を表示します。
-/// - 各明細には編集・削除ボタンが付属します。
-/// - 他人がロック中の場合は編集・削除ボタンを非表示にします。
-/// 支出明細一覧セクションのUIを構築します。
+/// 内部で [SettlementReport] を計算することで、
+/// 「均等割りにおける端数調整後の正確な負担額」を各カードに表示できるようにしています。
 Widget buildExpenseSection(
   BuildContext context,
   Event event, {
   required void Function(Event updated) onUpdate,
   required bool isLockedByMe,
 }) {
-  // SettlementReportを計算して、計算済みの負担内訳を取得
+  // 🚩 表示用に最新の精算レポート（負担内訳を含む）を算出
   final report = SettlementReport.calculate(event);
 
-  // 支払者IDのリスト（表示順用）
+  // メンバーの並び順に従ってグループ化表示
   final memberOrder = event.members.map((m) => m.id).toList();
 
   return Column(
@@ -146,11 +149,12 @@ Widget buildExpenseSection(
       ...memberOrder.expand((memberId) {
         final memberName = Utils.memberName(memberId, event.members);
 
-        // このメンバーが支払った明細の「計算結果（Breakdown）」のみを抽出
+        // この支払者に関連する明細の「計算済み内訳」を抽出
         final memberBreakdowns = report.breakdowns
             .where((b) => b.expense.payer == memberId)
             .toList();
 
+        // 該当する支出がないメンバーのセクションは表示しない
         if (memberBreakdowns.isEmpty) return <Widget>[];
 
         return [
@@ -167,7 +171,7 @@ Widget buildExpenseSection(
           ),
           ...memberBreakdowns.map((breakdown) {
             final e = breakdown.expense;
-            // event.details 内の実際のインデックスを取得（編集・削除用）
+            // 元のリストにおけるインデックスを特定（操作時に必要）
             final actualIndex = event.details.indexOf(e);
 
             return Card(
@@ -183,6 +187,7 @@ Widget buildExpenseSection(
                       ),
                     ),
                     const SizedBox(width: 4),
+                    // 分割モード（手動/均等）をアイコンで視覚化
                     Icon(
                       breakdown.isManual ? Icons.tune : Icons.balance,
                       size: 18,
@@ -197,10 +202,11 @@ Widget buildExpenseSection(
                     children: [
                       if (e.payDate != null && e.payDate!.isNotEmpty)
                         Text("支払日: ${e.payDate}"),
-                      Text("合計金額: ${Utils.formatAmount(e.amount)}円"),
+                      Text("合計金額: ${Utils.formatAmount(e.amount)}"),
                       const SizedBox(height: 4),
 
-                      // 後半のロジックを適用
+                      // 🚩 負担内訳の表示エリア
+                      // 「手動入力」または「一部のメンバーのみ参加」の場合は詳細リストを表示
                       if (breakdown.isManual || breakdown.isPartial) ...[
                         const Text(
                           "負担内訳:",
@@ -213,12 +219,13 @@ Widget buildExpenseSection(
                           (share) => Padding(
                             padding: const EdgeInsets.only(left: 8.0),
                             child: Text(
-                              "・${share.memberName}: ${Utils.formatAmount(share.amount)}円",
+                              "・${share.memberName}: ${Utils.formatAmount(share.amount)}",
                               style: const TextStyle(fontSize: 13),
                             ),
                           ),
                         ),
                       ] else ...[
+                        // 全員均等の場合は「1人あたり」の単価を表示
                         const Text(
                           "負担金額:",
                           style: TextStyle(
@@ -230,14 +237,14 @@ Widget buildExpenseSection(
                           padding: const EdgeInsets.only(left: 8.0),
                           child: Builder(
                             builder: (context) {
-                              // 平均額の計算 (double)
+                              // 平均額の算出（UI上は小数第2位まで表示して正確性を伝える）
                               final average = e.participants.isNotEmpty
                                   ? e.amount / e.participants.length
                                   : 0.0;
                               final formattedAvg = average.toStringAsFixed(2);
 
                               return Text(
-                                "・1人あたり $formattedAvg円",
+                                "・1人あたり ${Utils.formatStrAmount(formattedAvg)}",
                                 style: const TextStyle(fontSize: 13),
                               );
                             },
@@ -247,6 +254,7 @@ Widget buildExpenseSection(
                     ],
                   ),
                 ),
+                // 自分が編集権限（ロック）を持っている場合のみ操作ボタンを表示
                 trailing: isLockedByMe
                     ? Row(
                         mainAxisSize: MainAxisSize.min,

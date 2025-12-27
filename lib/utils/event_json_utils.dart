@@ -3,7 +3,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:wari_can/models/common.dart';
 import 'package:wari_can/utils/exception_utils.dart';
 import 'package:wari_can/utils/snackbar_utils.dart';
-
 import '../models/event.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -11,76 +10,98 @@ import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
-/// イベントデータのJSON入出力を扱うユーティリティクラス。
+/// イベントデータのJSON形式でのエクスポートおよびインポートを管理するユーティリティ。
 ///
-/// - JSON形式でイベントを表示・コピー・共有
-/// - JSONからイベントを読み込み、IDを再採番して保存
+/// 外部アプリへの共有や、コピー＆ペーストによるイベントの複製を可能にします。
+/// インポート時には、既存データとの衝突を避けるためにIDの再発行（再採番）を行います。
 class EventJsonUtils {
-  static final _uuid = Uuid();
+  static const _uuid = Uuid();
 
-  /// イベントをJSON形式で表示・コピー・共有します。
+  /// イベントをJSON形式の文字列に変換し、ダイアログで表示します。
   ///
-  /// [context] はダイアログ表示に使用するBuildContext。
-  /// [event] は対象のイベントデータ。
-  ///
-  /// ダイアログにはJSON文字列が表示され、コピーや共有が可能です。
+  /// ユーザーはダイアログを通じて以下の操作が可能です。
+  /// - JSONの閲覧（SelectableText）
+  /// - クリップボードへのコピー
+  /// - OS標準の共有シート呼び出し
   static Future<void> exportEventJson(BuildContext context, Event event) async {
     final jsonStr = jsonEncode(event.toJson());
+
     await showDialog(
       context: context,
       builder: (_) => AlertDialog(
         title: const Text("イベントJSON"),
-        content: SingleChildScrollView(child: SelectableText(jsonStr)),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: SelectableText(
+              jsonStr,
+              style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+            ),
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text("閉じる"),
           ),
-          ElevatedButton(
+          ElevatedButton.icon(
+            icon: const Icon(Icons.copy, size: 18),
+            label: const Text("コピー"),
             onPressed: () {
               Clipboard.setData(ClipboardData(text: jsonStr));
               Navigator.pop(context);
               showAppSnackBar(
                 context,
-                message: 'JSONをコピーしました',
+                message: 'JSONをクリップボードにコピーしました',
                 type: SnackBarType.info,
               );
             },
-            child: const Text("コピー"),
           ),
-          ElevatedButton(
+          ElevatedButton.icon(
+            icon: const Icon(Icons.share, size: 18),
+            label: const Text("共有"),
             onPressed: () {
-              Share.share(jsonStr, subject: "イベントJSON");
+              Share.share(jsonStr, subject: "イベントデータ: ${event.name}");
             },
-            child: const Text("共有"),
           ),
         ],
       ),
     );
   }
 
-  /// JSON文字列からイベントを読み込み、IDを再採番して保存します。
+  /// JSON文字列を解析し、新しいイベントとしてアプリに読み込みます。
   ///
-  /// [context] はダイアログ表示に使用するBuildContext。
-  ///
-  /// ユーザーが貼り付けたJSONを解析し、新しいIDでイベントを生成・保存します。
-  /// 読み込みに成功すると新しい [Event] を返します。失敗時は `null` を返します。
+  /// セキュリティと整合性のための処理：
+  /// 1. 解析したイベントに新しい UUID を割り振る（既存イベントとの衝突防止）。
+  /// 2. 現在のログインユーザーをオーナーとして設定。
+  /// 3. 作成・更新日時を現在時刻にリセット。
+  /// 4. SharedPreferences に永続化。
   static Future<Event?> importEventJson(BuildContext context) async {
     final controller = TextEditingController();
 
     final result = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text("JSONからイベント読み込み"),
-        content: SingleChildScrollView(
-          child: TextField(
-            controller: controller,
-            maxLines: null,
-            decoration: const InputDecoration(
-              hintText: 'ここにコピーしたJSONを貼り付け',
-              border: OutlineInputBorder(),
+        title: const Text("JSONから読み込み"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              "エクスポートされたJSONを以下に貼り付けてください。",
+              style: TextStyle(fontSize: 13),
             ),
-          ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              maxLines: 8,
+              decoration: const InputDecoration(
+                hintText: '{"id": "...", "name": "..."}',
+                border: OutlineInputBorder(),
+                filled: true,
+              ),
+              style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -89,58 +110,69 @@ class EventJsonUtils {
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text("読み込み"),
+            child: const Text("読み込み実行"),
           ),
         ],
       ),
     );
 
-    if (result != true) return null;
+    if (result != true || controller.text.trim().isEmpty) return null;
 
     try {
-      final jsonMap = jsonDecode(controller.text) as Map<String, dynamic>;
+      // 1. JSONデコード
+      final jsonMap =
+          jsonDecode(controller.text.trim()) as Map<String, dynamic>;
       final oldEvent = Event.fromJson(jsonMap);
 
+      // 2. タイムスタンプの生成
       final timestamps = TimestampedEntity.newTimestamps();
 
+      // 3. ユーザー情報の取得
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid == null) {
-        throw Exception('ログインユーザーが見つかりません');
+        throw Exception('ログインユーザーが見つからないため、インポートできません');
       }
 
+      // 4. 新しいIDと権限でイベントを再構築
       final newEvent = Event(
-        id: _uuid.v4(),
-        name: oldEvent.name,
+        id: _uuid.v4(), // 重要：新しいIDを生成
+        name: "${oldEvent.name} (コピー)", // コピーであることがわかるように
         startDate: oldEvent.startDate,
         endDate: oldEvent.endDate,
         members: oldEvent.members,
         details: oldEvent.details,
-        ownerUid: uid, // 作成者のUIDを設定
-        sharedWith: [uid], // 初期状態では自分だけに共有
+        ownerUid: uid,
+        sharedWith: [uid],
         createAt: timestamps['createAt']!,
         updateAt: timestamps['updateAt']!,
       );
 
+      // 5. ローカルストレージ（SharedPreferences）へ保存
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(
         'event_${newEvent.id}',
         jsonEncode(newEvent.toJson()),
       );
 
+      if (!context.mounted) return newEvent;
+
       showAppSnackBar(
         context,
-        message: 'イベントを読み込みました（新IDで追加）',
+        message: 'イベントを新しく作成しました',
         type: SnackBarType.info,
       );
 
       return newEvent;
     } on Exception catch (e) {
+      if (!context.mounted) return null;
       showAppSnackBar(
         context,
-        message: "読み込みエラー: ${ExceptionUtils.format(e)}",
+        message: "解析に失敗しました: ${ExceptionUtils.format(e)}",
         type: SnackBarType.error,
       );
       return null;
+    } finally {
+      controller.dispose();
     }
   }
 }

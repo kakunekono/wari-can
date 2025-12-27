@@ -5,17 +5,10 @@ import 'package:wari_can/models/event.dart';
 import 'package:wari_can/models/menber.dart';
 import 'package:wari_can/utils/snackbar_utils.dart';
 
-/// メンバー追加・編集・削除に関するロジック群。
+/// メンバー追加処理
 ///
-/// UIから分離されたロジックとして、イベントの状態更新をコールバックで受け取ります。
-/// 編集はローカルで完結し、保存時にのみ Firebase へ同期されます。
-
-/// メンバー追加処理。
-///
-/// - 入力された名前が空でないかを確認します。
-/// - 同名のメンバーがすでに存在する場合は追加を拒否します。
-/// - 新しいメンバーを生成し、イベントに追加します。
-/// - 成功後はコントローラーをクリアします。
+/// 入力バリデーション（空文字・重複）を行い、新しい [Member] を生成します。
+/// 更新は [onUpdate] コールバックを通じて親コンポーネントへ通知されます。
 Future<void> addMember(
   BuildContext context,
   Event event,
@@ -25,6 +18,7 @@ Future<void> addMember(
   final name = controller.text.trim();
   if (name.isEmpty) return;
 
+  // 同じ名前のメンバーが既にいないかチェック
   if (event.members.any((m) => m.name == name)) {
     showAppSnackBar(
       context,
@@ -36,25 +30,27 @@ Future<void> addMember(
 
   final now = DateTime.now();
   final newMember = Member(
-    id: const Uuid().v4(),
+    id: const Uuid().v4(), // 一意のIDを発行
     name: name,
     createAt: now,
     updateAt: now,
   );
 
+  // 既存のリストに新しいメンバーを追加した新しい Event インスタンスを生成
   final updated = event.copyWith(
     members: [...event.members, newMember],
     updateAt: now,
   );
 
   onUpdate(updated);
-  controller.clear();
+  controller.clear(); // 入力フィールドをリセット
 }
 
-/// メンバー削除処理。
+/// メンバー削除処理
 ///
-/// - 対象メンバーが支出に使用されている場合は削除不可。
-/// - 削除確認ダイアログを表示し、承認された場合のみ削除します。
+/// 1. 確認ダイアログの表示
+/// 2. 使用状況チェック（支出明細に紐づいている場合は削除不可）
+/// 3. リストからの除去
 Future<void> deleteMember(
   BuildContext context,
   Event event,
@@ -63,6 +59,7 @@ Future<void> deleteMember(
 }) async {
   final member = event.members.firstWhere((m) => m.id == memberId);
 
+  // 削除の最終確認
   final confirmed = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
@@ -84,6 +81,7 @@ Future<void> deleteMember(
 
   if (confirmed != true) return;
 
+  // 重要：このメンバーが「支払者」または「参加者」として支出に含まれているか確認
   final used = event.details.any(
     (d) => d.payer == memberId || d.participants.contains(memberId),
   );
@@ -91,7 +89,7 @@ Future<void> deleteMember(
   if (used) {
     showAppSnackBar(
       context,
-      message: 'このメンバーは支払に使用されています',
+      message: 'このメンバーは支払に使用されているため削除できません',
       type: SnackBarType.warning,
     );
     return;
@@ -110,10 +108,9 @@ Future<void> deleteMember(
   );
 }
 
-/// メンバー名編集処理。
+/// メンバー名の編集処理
 ///
-/// - 編集ダイアログを表示し、変更された名前を反映します。
-/// - 空文字や変更なしの場合は無視されます。
+/// ダイアログを表示して名前の変更を受け付けます。
 Future<void> editMemberName(
   BuildContext context,
   Event event,
@@ -128,7 +125,11 @@ Future<void> editMemberName(
     context: context,
     builder: (_) => AlertDialog(
       title: const Text("メンバー名を編集"),
-      content: TextField(controller: controller),
+      content: TextField(
+        controller: controller,
+        autofocus: true,
+        decoration: const InputDecoration(hintText: "新しい名前"),
+      ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
@@ -142,6 +143,7 @@ Future<void> editMemberName(
     ),
   );
 
+  // 名前が変更されており、かつ空でない場合のみ更新
   if (newName != null && newName.trim().isNotEmpty && newName != oldName) {
     final now = DateTime.now();
     final updatedMembers = event.members.map((m) {
@@ -156,11 +158,10 @@ Future<void> editMemberName(
   }
 }
 
-/// メンバー一覧セクションのUIを構築します。
+/// メンバー管理セクションのUI構築
 ///
-/// - メンバー名入力欄と追加ボタンを表示します。
-/// - 登録済みメンバーを一覧表示し、編集・削除ボタンを提供します。
-/// - 他人がロック中の場合は編集・削除ボタンを非表示にします。
+/// 権限（Ownerかどうか）およびロック状態（自分が編集権を持っているか）に基づいて
+/// 操作ボタン（追加・編集・削除）の表示を切り替えます。
 Widget buildMemberSection(
   BuildContext context,
   Event event,
@@ -168,12 +169,14 @@ Widget buildMemberSection(
   required void Function(Event updated) onUpdate,
   required bool isLockedByMe,
 }) {
+  // 現在のユーザーがイベントのオーナーかどうかを判定
   final isOwner = event.ownerUid == FirebaseAuth.instance.currentUser?.uid;
 
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      if (isOwner) // オーナーのみ入力欄と追加ボタンを表示
+      // 追加機能：オーナーのみに許可
+      if (isOwner)
         Row(
           children: [
             Expanded(
@@ -182,7 +185,10 @@ Widget buildMemberSection(
                 decoration: const InputDecoration(
                   labelText: 'メンバー名を入力',
                   border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.person),
                 ),
+                onSubmitted: (_) =>
+                    addMember(context, event, controller, onUpdate: onUpdate),
               ),
             ),
             const SizedBox(width: 8),
@@ -194,37 +200,61 @@ Widget buildMemberSection(
           ],
         ),
       const SizedBox(height: 12),
+
+      // メンバーリストの表示
       if (event.members.isEmpty)
-        const Text(
-          'メンバーが登録されていません',
-          style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
+        const Center(
+          child: Padding(
+            padding: EdgeInsets.all(16.0),
+            child: Text(
+              'メンバーが登録されていません',
+              style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
+            ),
+          ),
         )
       else
         ...event.members.map(
           (m) => Card(
+            margin: const EdgeInsets.symmetric(vertical: 4),
             child: ListTile(
-              title: Text(m.name),
+              title: Text(
+                m.name,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
               trailing: Wrap(
                 spacing: 8,
                 children: [
+                  // 編集・削除ボタン：オーナーであり、かつ自分が編集ロックを取得している時のみ表示
                   if (isOwner && isLockedByMe) ...[
                     IconButton(
+                      constraints: const BoxConstraints(),
+                      padding: EdgeInsets.zero,
                       onPressed: () => editMemberName(
                         context,
                         event,
                         m.id,
                         onUpdate: onUpdate,
                       ),
-                      icon: const Icon(Icons.edit, color: Colors.orange),
+                      icon: const Icon(
+                        Icons.edit,
+                        color: Colors.orange,
+                        size: 20,
+                      ),
                     ),
                     IconButton(
+                      constraints: const BoxConstraints(),
+                      padding: EdgeInsets.zero,
                       onPressed: () => deleteMember(
                         context,
                         event,
                         m.id,
                         onUpdate: onUpdate,
                       ),
-                      icon: const Icon(Icons.delete, color: Colors.red),
+                      icon: const Icon(
+                        Icons.delete,
+                        color: Colors.red,
+                        size: 20,
+                      ),
                     ),
                   ],
                 ],

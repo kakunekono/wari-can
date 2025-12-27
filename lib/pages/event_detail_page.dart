@@ -691,9 +691,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
                         );
                       }).toList(),
                     ),
-
                   const Divider(height: 32),
-
                   // 👥 メンバー一覧
                   ExpansionTile(
                     title: const Text('👥 メンバー一覧'),
@@ -721,7 +719,6 @@ class _EventDetailPageState extends State<EventDetailPage> {
                     ],
                   ),
                   const Divider(),
-
                   // 💰 支出明細 (report.breakdowns を利用して詳細表示)
                   ExpansionTile(
                     title: const Text('💰 支出明細'),
@@ -749,10 +746,9 @@ class _EventDetailPageState extends State<EventDetailPage> {
                     ],
                   ),
                   const Divider(),
-
-                  // 💳 各メンバーの支払合計金額
+                  // --- 💳 支払合計金額 ---
                   ExpansionTile(
-                    title: const Text('💳 各メンバーの支払合計金額'),
+                    title: const Text('💳 支払合計金額'),
                     initiallyExpanded:
                         _accordionState["paymentsExpansionTile"] ?? true,
                     onExpansionChanged: (isExpanded) =>
@@ -763,17 +759,20 @@ class _EventDetailPageState extends State<EventDetailPage> {
                     children: _event.members.map((m) {
                       final amount = paidTotals[m.id] ?? 0;
                       return ListTile(
+                        visualDensity: const VisualDensity(
+                          vertical: -4,
+                        ), // 💡 垂直方向を極限まで詰める
+                        minVerticalPadding: 0, // 💡 パディングを最小化
                         title: Text(
-                          "${m.name}: ${Utils.formatAmount(amount)}円",
+                          "${m.name}: ${Utils.formatAmount(amount)}",
                         ),
                       );
                     }).toList(),
                   ),
-                  const Divider(),
-
-                  // 💸 各メンバーの負担合計金額
+                  const Divider(height: 16), // セクション間の間隔は維持
+                  // --- 💸 負担合計金額 ---
                   ExpansionTile(
-                    title: const Text('💸 各メンバーの負担合計金額'),
+                    title: const Text('💸 負担合計金額'),
                     initiallyExpanded:
                         _accordionState["liabilitiesExpansionTile"] ?? true,
                     onExpansionChanged: (isExpanded) =>
@@ -785,17 +784,18 @@ class _EventDetailPageState extends State<EventDetailPage> {
                     children: _event.members.map((m) {
                       final amount = memberShareTotals[m.id] ?? 0;
                       return ListTile(
+                        visualDensity: const VisualDensity(vertical: -4),
+                        minVerticalPadding: 0,
                         title: Text(
-                          "${m.name}: ${Utils.formatAmount(amount)}円",
+                          "${m.name}: ${Utils.formatAmount(amount)}",
                         ),
                       );
                     }).toList(),
                   ),
-                  const Divider(),
-
-                  // 📊 メンバーごとの精算差額
+                  const Divider(height: 16),
+                  // --- 📊 精算差額 ---
                   ExpansionTile(
-                    title: const Text('📊 メンバーごとの精算差額'),
+                    title: const Text('📊 精算差額'),
                     initiallyExpanded:
                         _accordionState["memberBalancesExpansionTile"] ?? true,
                     onExpansionChanged: (isExpanded) =>
@@ -811,16 +811,17 @@ class _EventDetailPageState extends State<EventDetailPage> {
                           : (value < 0 ? Colors.red : null);
                       final sign = value >= 0 ? '+' : '';
                       return ListTile(
+                        visualDensity: const VisualDensity(vertical: -4),
+                        minVerticalPadding: 0,
                         title: Text(
-                          "${m.name}: $sign${Utils.formatAmount(value)}円",
+                          "${m.name}: $sign${Utils.formatAmount(value)}",
                         ),
                         textColor: color,
                       );
                     }).toList(),
                   ),
-                  const Divider(),
-
-                  // 📈 精算結果
+                  const Divider(height: 16),
+                  // --- 📈 精算結果 ---
                   ExpansionTile(
                     title: const Text('📈 精算結果'),
                     initiallyExpanded:
@@ -832,12 +833,15 @@ class _EventDetailPageState extends State<EventDetailPage> {
                     backgroundColor: Theme.of(
                       context,
                     ).colorScheme.surfaceContainerHighest,
-                    children: settlements
-                        .map((s) => ListTile(title: Text(s)))
-                        .toList(),
+                    children: settlements.map((s) {
+                      return ListTile(
+                        visualDensity: const VisualDensity(vertical: -4),
+                        minVerticalPadding: 0,
+                        title: Text(s),
+                      );
+                    }).toList(),
                   ),
                   const SizedBox(height: 24),
-
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [

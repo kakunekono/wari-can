@@ -7,6 +7,11 @@ import 'package:wari_can/utils/snackbar_utils.dart';
 import '../pages/event_list_page.dart';
 import '../auth/google_auth_web.dart';
 
+/// ログイン方法の選択画面。
+///
+/// ユーザーに対して「匿名」「Google」「ローカル」の3つの利用形態を提示します。
+/// 各認証後の [FirebaseFirestore] へのユーザープロファイル作成と、
+/// 初回ログイン時の名前入力画面への遷移を管理します。
 class LoginChoicePage extends StatefulWidget {
   final VoidCallback onToggleTheme;
   final bool isDark;
@@ -22,16 +27,20 @@ class LoginChoicePage extends StatefulWidget {
 }
 
 class _LoginChoicePageState extends State<LoginChoicePage> {
-  /// 匿名ログイン
+  /// 匿名ログインの実行
+  ///
+  /// 手軽にアプリを使い始めたいユーザー向け。
+  /// ログイン後、Firestoreに名前が登録されていない場合は [NameInputScreen] へ誘導します。
   Future<void> _handleAnonymousLogin() async {
     try {
       final cred = await FirebaseAuth.instance.signInAnonymously();
-      // awaitの後は常にmountedをチェック
+      // 非同期処理の後は常に mounted チェックを行い、Context 操作の安全性を確保
       if (!mounted) return;
 
       final user = cred.user;
       if (user == null) return;
 
+      // Firestoreからユーザー設定を取得
       final doc = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
@@ -40,6 +49,7 @@ class _LoginChoicePageState extends State<LoginChoicePage> {
 
       final name = doc.data()?['name'];
 
+      // 名前が未設定（または空）の場合は名前入力画面へ、設定済みの場合は一覧へ
       if (name == null || (name is String && name.trim().isEmpty)) {
         await Navigator.push<String>(
           context,
@@ -59,7 +69,10 @@ class _LoginChoicePageState extends State<LoginChoicePage> {
     }
   }
 
-  /// Googleログイン
+  /// Googleログインの実行
+  ///
+  /// ログイン成功後、Firestoreにプロファイルが存在しない場合は、
+  /// Googleアカウントの表示名をデフォルト名として自動登録します。
   Future<void> _handleGoogleLogin() async {
     final result = await signInWithGoogleWeb();
     if (!mounted) return;
@@ -77,9 +90,10 @@ class _LoginChoicePageState extends State<LoginChoicePage> {
       final doc = await docRef.get();
       if (!mounted) return;
 
+      // ユーザーデータが存在しない、または名前が未登録の場合のみ初期データをセット
       if (!doc.exists || doc.data()?['name'] == null) {
         await docRef.set({
-          'name': user.displayName,
+          'name': user.displayName, // Googleアカウントの名前を初期値にする
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
           'isAnonymous': user.isAnonymous,
@@ -91,7 +105,8 @@ class _LoginChoicePageState extends State<LoginChoicePage> {
     _navigateToEventList();
   }
 
-  /// ローカルモード
+  /// ローカルモード（オフライン利用）のハンドラ
+  /// 現在開発中のため、ユーザーにその旨を通知します。
   void _handleLocalMode() {
     showAppSnackBar(
       context,
@@ -100,7 +115,8 @@ class _LoginChoicePageState extends State<LoginChoicePage> {
     );
   }
 
-  /// イベント一覧ページへ遷移
+  /// 認証・プロファイル設定完了後の遷移処理
+  /// [pushReplacement] を使い、ログイン画面をスタックから削除して戻れないようにします。
   void _navigateToEventList() {
     Navigator.pushReplacement(
       context,
@@ -113,7 +129,7 @@ class _LoginChoicePageState extends State<LoginChoicePage> {
     );
   }
 
-  /// エラーメッセージ表示
+  /// 共通エラー表示用スナックバー
   void _showError(String message) {
     showAppSnackBar(context, message: message, type: SnackBarType.error);
   }
@@ -124,6 +140,7 @@ class _LoginChoicePageState extends State<LoginChoicePage> {
       appBar: AppBar(
         title: const Text('ログイン方法を選択'),
         actions: [
+          // ダークモード切り替えボタンをAppBarに配置
           IconButton(
             icon: Icon(widget.isDark ? Icons.light_mode : Icons.dark_mode),
             onPressed: widget.onToggleTheme,
@@ -157,6 +174,7 @@ class _LoginChoicePageState extends State<LoginChoicePage> {
     );
   }
 
+  /// ログイン画面専用の共通ボタンウィジェット
   Widget _buildLoginButton({
     required IconData icon,
     required String label,

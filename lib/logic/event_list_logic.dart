@@ -17,17 +17,18 @@ import '../pages/event_detail_page.dart';
 import '../utils/firestore_helper.dart';
 import '../utils/event_json_utils.dart';
 
-/// イベント一覧画面のロジックをまとめたクラス。
+/// イベント一覧画面のビジネスロジックを管理するクラス。
 ///
-/// Firestore・SharedPreferences を通じたイベントの取得・保存・編集・削除・インポート・エクスポートなどを担当します。
+/// Firestore（クラウド）と SharedPreferences（ローカル）の同期、
+/// 排他制御（Lock）を考慮したデータ操作、インポート/エクスポートなどを担当します。
 class EventListLogic {
-  /// UUID生成器（メンバー複製などに使用）
+  /// メンバーのID再生成などに使用するUUIDジェネレータ
   final _uuid = const Uuid();
 
-  /// 初期化済みフラグ（initializeOnce用）
+  /// アプリ起動中の初期化実行済みフラグ
   bool _initialized = false;
 
-  /// Firestoreからイベントを取得し、ローカルキャッシュも更新して返す。
+  /// Firestoreからイベントを取得し、ローカルキャッシュ（SharedPrefs）を最新状態に更新します。
   Future<List<Event>> loadEventsAndUpdateLocalCache() async {
     final events = await loadEvents();
     final prefs = await SharedPreferences.getInstance();
@@ -37,32 +38,33 @@ class EventListLogic {
     return events;
   }
 
-  /// Firestoreからイベントを取得し、ローカルストレージを再構成して返す。
+  /// ローカルのイベントキャッシュを一度全削除したあと、Firestoreから再取得して保存し直します。
+  ///
+  /// クラウドとローカルの不整合を解消したい場合に呼び出します。
   Future<List<Event>> reloadEventsFromFirestoreAndResave() async {
     final prefs = await SharedPreferences.getInstance();
 
-    // ローカルイベントキーをすべて削除
+    // 1. ローカル上の event_ から始まるキーをすべて削除
     final keys = prefs.getKeys().where((k) => k.startsWith('event_')).toList();
     for (final key in keys) {
       await prefs.remove(key);
     }
-
     debugPrint("[Logic] Cleared ${keys.length} local events.");
 
-    // Firestoreからイベント一覧を取得
+    // 2. Firestoreから最新リストを取得
     final events = await loadEvents();
     debugPrint("[Logic] Fetched ${events.length} events from Firestore.");
 
-    // ローカルに保存し直す
+    // 3. 取得したデータをローカルに再保存
     for (final e in events) {
       await prefs.setString('event_${e.id}', jsonEncode(e.toJson()));
     }
-
     debugPrint("[Logic] Re-saved events to local storage.");
+
     return events;
   }
 
-  /// 初期化処理を一度だけ実行する（UI側から呼び出し）。
+  /// 初期化処理（UI側のinitStateなどで一度だけ呼び出されることを想定）。
   Future<void> initializeOnce(
     BuildContext context,
     void Function(List<Event>) onInitialized,
@@ -73,9 +75,7 @@ class EventListLogic {
     onInitialized(events);
   }
 
-  /// Firestoreから、ログインユーザーがアクセス可能なイベント一覧を読み込む。
-  ///
-  /// 自分が作成したイベントと共有されたイベントを統合して返します。
+  /// ログインユーザーが関係する（オーナーまたは共有相手である）イベント一覧をFirestoreから取得します。
   Future<List<Event>> loadEvents() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) throw Exception('ログインしていません');
@@ -83,7 +83,7 @@ class EventListLogic {
     final events = <Event>[];
 
     try {
-      // 自分が作成したイベント
+      // 自分が作成（オーナー）したイベントを取得
       final ownerSnapshot = await FirebaseFirestore.instance
           .collection('events')
           .where('ownerUid', isEqualTo: uid)
@@ -92,18 +92,20 @@ class EventListLogic {
         ownerSnapshot.docs.map((doc) => Event.fromJson(doc.data())),
       );
 
-      // 自分が共有されているイベント
+      // 他人から自分に共有されているイベントを取得
       final sharedSnapshot = await FirebaseFirestore.instance
           .collection('events')
           .where('sharedWith', arrayContains: uid)
           .get();
       for (final doc in sharedSnapshot.docs) {
         final event = Event.fromJson(doc.data());
+        // 重複（オーナーかつ共有者という稀なケース）を排除
         if (!events.any((e) => e.id == event.id)) {
           events.add(event);
         }
       }
 
+      // 名前順にソートして返却
       events.sort((a, b) => a.name.compareTo(b.name));
       return events;
     } on Exception catch (e) {
@@ -112,10 +114,9 @@ class EventListLogic {
     }
   }
 
-  /// 既存の Event を保存し、成功時は保存済み Event を返す
+  /// 既存のEventオブジェクトをFirestoreに保存します。
   Future<Event?> addEvent(BuildContext context, Event event) async {
     try {
-      // Firestore に保存
       await FirebaseFirestore.instance
           .collection('events')
           .doc(event.id)
@@ -124,16 +125,14 @@ class EventListLogic {
       debugPrint("イベント保存成功: ${event.id}");
       return event;
     } on Exception catch (e) {
-      // 例外を整形してユーザーに通知
       final msg = ExceptionUtils.format(e);
       debugPrint("イベント保存失敗: $msg");
-
       showAppSnackBar(context, message: msg);
       return null;
     }
   }
 
-  /// 新しいイベントを作成して保存・返却する。
+  /// 新規イベント名から新しいEventを作成し、クラウドとローカルの両方に保存します。
   Future<Event?> addEventWithName(BuildContext context, String name) async {
     final trimmed = name.trim();
     if (trimmed.isEmpty) {
@@ -149,6 +148,7 @@ class EventListLogic {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) throw Exception('ログインユーザーが見つかりません');
 
+    // 新規イベントデータの生成
     final newEvent = Event(
       id: Utils.generateUuid(),
       name: trimmed,
@@ -159,13 +159,13 @@ class EventListLogic {
     );
 
     try {
-      // 🔹 Firestore に保存
+      // クラウド保存
       await FirebaseFirestore.instance
           .collection("events")
           .doc(newEvent.id)
           .set(newEvent.toJson());
 
-      // 🔹 SharedPreferences に保存
+      // ローカル保存
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(
         'event_${newEvent.id}',
@@ -185,8 +185,9 @@ class EventListLogic {
     }
   }
 
-  /// イベントを削除する（ローカル + Firestore + ロック制御）
+  /// イベントを削除します。他ユーザーによる編集中の場合は削除をブロックします。
   Future<bool> deleteEvent(BuildContext context, Event event) async {
+    // 削除確認
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -214,7 +215,7 @@ class EventListLogic {
     bool acquiredLock = false;
 
     try {
-      // ロック取得
+      // 編集ロックを取得できるかトランザクションで確認（競合防止）
       final success = await FirebaseFirestore.instance.runTransaction((
         tx,
       ) async {
@@ -237,7 +238,7 @@ class EventListLogic {
 
       acquiredLock = true;
 
-      // イベント削除
+      // 両ターゲット（Firestore/Local）から削除を実行
       await deleteEventFlexible(event.id, target: SaveTarget.both);
 
       return true;
@@ -249,13 +250,14 @@ class EventListLogic {
       );
       return false;
     } finally {
+      // 取得したロックを削除
       if (acquiredLock) {
-        await lockRef.delete(); // または update({'lockedBy': null})
+        await lockRef.delete();
       }
     }
   }
 
-  /// イベント名を編集する（ロック取得対応版）
+  /// イベント名の変更を行います。ロック取得→保存→ロック解放のフロー。
   Future<void> editEventName(
     BuildContext context,
     Event event,
@@ -298,11 +300,11 @@ class EventListLogic {
       bool acquiredLock = false;
 
       try {
-        // ロック取得
+        // ロックを取得
         await LockManager.acquireLock(event.id, uid);
         acquiredLock = true;
 
-        // 保存処理
+        // 更新処理
         await saveEventFlexible(context, updated);
         onUpdated();
 
@@ -312,14 +314,13 @@ class EventListLogic {
           type: SnackBarType.info,
         );
       } on Exception catch (e) {
-        final message = ExceptionUtils.format(e); // 共通整形関数を利用
         showAppSnackBar(
           context,
-          message: "保存に失敗しました: $message",
+          message: "保存に失敗しました: ${ExceptionUtils.format(e)}",
           type: SnackBarType.error,
         );
       } finally {
-        // 自分が取得したロックのみ解放
+        // 自分が取得した場合のみロックを解放
         if (acquiredLock) {
           await LockManager.releaseLock(event.id, uid);
         }
@@ -327,7 +328,7 @@ class EventListLogic {
     }
   }
 
-  /// メンバーをコピーしてイベントを新規作成する。
+  /// 既存イベントのメンバー構成をコピーし、新しい空のイベントを作成します。
   Future<void> copyEvent(
     BuildContext context,
     Event original,
@@ -362,6 +363,7 @@ class EventListLogic {
     if (result == null || result.isEmpty) return;
 
     final now = DateTime.now();
+    // メンバーのIDを新規発行しつつリストを複製
     final newEvent = original.copyWith(
       id: _uuid.v4(),
       name: result,
@@ -382,10 +384,12 @@ class EventListLogic {
       type: SnackBarType.info,
     );
 
+    // 作成後そのまま詳細画面へ遷移
     await openEventDetail(context, newEvent);
   }
 
-  /// イベント詳細ページを開き、Firestoreから最新データを取得してローカルに保存する。
+  /// イベント詳細画面を開きます。
+  /// クラウドから最新データを強制取得（プル）してから遷移することで、他ユーザーの編集を確実に反映します。
   Future<void> openEventDetail(BuildContext context, Event event) async {
     try {
       final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -395,7 +399,7 @@ class EventListLogic {
           .collection("events")
           .doc(event.id);
 
-      // Firestoreから最新データを取得（キャッシュ無視）
+      // キャッシュを無視してサーバーから最新データを取得
       final snapshot = await docRef.get(
         const GetOptions(source: Source.server),
       );
@@ -407,21 +411,21 @@ class EventListLogic {
       final data = snapshot.data()!;
       final updatedEvent = Event.fromJson(data);
 
-      // アクセス権の確認
+      // 権限チェック
       final ownerUid = data['ownerUid'] as String?;
       final sharedWith = List<String>.from(data['sharedWith'] ?? []);
       if (ownerUid != uid && !sharedWith.contains(uid)) {
         throw Exception('このイベントにアクセスする権限がありません');
       }
 
-      // ローカルに保存
+      // 取得した最新データをローカルキャッシュに上書き保存
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(
         'event_${updatedEvent.id}',
         jsonEncode(updatedEvent.toJson()),
       );
 
-      // 最新データで画面を開く
+      // 詳細画面へ遷移し、戻り値を待機
       final updated = await Navigator.push<bool>(
         context,
         MaterialPageRoute(builder: (_) => EventDetailPage(event: updatedEvent)),
@@ -429,6 +433,7 @@ class EventListLogic {
 
       debugPrint("イベント詳細ページから戻りました。更新: $updated");
 
+      // 詳細画面で更新があった場合、リスト画面側も最新状態に同期
       if (updated == true) {
         await loadEventsAndUpdateLocalCache();
       }
@@ -442,7 +447,7 @@ class EventListLogic {
     }
   }
 
-  /// すべてのイベントを削除する確認ダイアログ。
+  /// アプリ内のすべてのローカルデータを削除する際の確認・実行。
   Future<bool> confirmDeleteAll(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -475,12 +480,12 @@ class EventListLogic {
     return false;
   }
 
-  /// JSONからイベントをインポートする。
+  /// 外部ファイル（JSON）からイベントを読み込みます。
   Future<Event?> importEventJson(BuildContext context) async {
     return await EventJsonUtils.importEventJson(context);
   }
 
-  /// ローカルイベントをすべてクラウドにアップロードする。
+  /// 現在読み込んでいるすべてのイベントをFirestoreに強制アップロード（同期）します。
   Future<void> uploadAllEvents(BuildContext context) async {
     final events = await loadEvents();
     for (final e in events) {
@@ -489,37 +494,41 @@ class EventListLogic {
     showAppSnackBar(context, message: 'クラウドへアップロード完了', type: SnackBarType.info);
   }
 
-  /// イベント操作ボタン群を構築する。
-  ///
-  /// コピー・アップロード・JSON出力・編集・削除などのアクションを提供します。
+  /// 一覧画面の各行に表示するアクション（コピー・JSON・編集・削除）ボタンのリストを構築します。
   List<Widget> buildEventActionButtons(
     BuildContext context,
     Event event, {
     required VoidCallback onUpdated,
     required VoidCallback onDeleted,
   }) {
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+    final isOwner = event.ownerUid == currentUid;
+
     return [
+      // メンバーコピーボタン
       IconButton(
         icon: const Icon(Icons.content_copy),
         tooltip: 'メンバーをコピーして追加',
         iconSize: 20,
         onPressed: () => copyEvent(context, event, onUpdated),
       ),
+      // JSONエクスポートボタン
       IconButton(
         icon: const Icon(Icons.code),
         tooltip: 'JSON出力',
         iconSize: 20,
         onPressed: () => EventJsonUtils.exportEventJson(context, event),
       ),
-      if (event.ownerUid == FirebaseAuth.instance.currentUser?.uid)
+      // オーナー限定：編集ボタン
+      if (isOwner)
         IconButton(
           icon: const Icon(Icons.edit, color: Colors.blue),
           tooltip: '編集',
           iconSize: 20,
           onPressed: () => editEventName(context, event, onUpdated),
         ),
-      // 削除ボタンをオーナーのみ表示
-      if (event.ownerUid == FirebaseAuth.instance.currentUser?.uid)
+      // オーナー限定：削除ボタン
+      if (isOwner)
         IconButton(
           icon: const Icon(Icons.delete, color: Colors.red),
           tooltip: '削除',

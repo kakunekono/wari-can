@@ -28,8 +28,10 @@ class _LoginInfoFooterState extends State<LoginInfoFooter> {
         .doc(user.uid)
         .get();
 
+    // ✅ setState を呼ぶ前に mounted をチェックする
+    if (!mounted) return;
+
     setState(() {
-      if (!mounted) return;
       _displayName = doc.data()?['name'] ?? user.displayName;
     });
   }
