@@ -307,14 +307,27 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
                             Checkbox(
                               value: !isExcluded,
                               onChanged: (bool? checked) {
+                                // 【修正】
+                                // 現在チェックが入っている人数を計算
+                                final participantCount = widget.members
+                                    .where(
+                                      (m) => !_excludedMemberIds.contains(m.id),
+                                    )
+                                    .length;
+
+                                // もし最後の1人で、かつチェックを外そうとした（checked == false）場合は何もしない
+                                if (participantCount <= 1 && checked == false) {
+                                  return;
+                                }
+
                                 setState(() {
                                   if (checked == true) {
                                     _excludedMemberIds.remove(m.id);
                                   } else {
                                     _excludedMemberIds.add(m.id);
                                   }
+                                  _applyEqualSplit();
                                 });
-                                _applyEqualSplit();
                               },
                             ),
                           Expanded(
