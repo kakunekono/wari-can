@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:math_expressions/math_expressions.dart';
 import 'package:wari_can/models/expense.dart';
 import 'package:wari_can/models/menber.dart';
 import 'package:wari_can/utils/utils.dart';
@@ -205,6 +206,43 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
     });
   }
 
+  /// 文字列の計算式を評価して数値に変換する
+  void _calculateField(
+    TextEditingController controller, {
+    bool isTotal = false,
+  }) {
+    try {
+      // 全角の「＋」などを半角に置換（日本のユーザー向け）
+      String input = controller.text
+          .replaceAll('＋', '+')
+          .replaceAll('－', '-')
+          .replaceAll('×', '*')
+          .replaceAll('÷', '/');
+
+      ShuntingYardParser p = ShuntingYardParser();
+      Expression exp = p.parse(input);
+      ContextModel cm = ContextModel();
+      double eval = exp.evaluate(EvaluationType.REAL, cm);
+
+      setState(() {
+        // 小数点以下を切り捨てて整数に
+        controller.text = eval.toInt().toString();
+
+        // 合計金額を計算した場合は各個人に反映、個人の場合は総額に反映
+        if (isTotal) {
+          if (_mode == SplitMode.equal) _applyEqualSplit();
+        } else {
+          if (_mode == SplitMode.manual) _updateTotalFromManualInput();
+        }
+      });
+    } catch (e) {
+      // 計算できない形式（文字が含まれるなど）の場合は何もしない、または通知
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("計算式が正しくありません")));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final diff = subtotal - total;
@@ -246,8 +284,16 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
                   const SizedBox(height: 8),
                   TextField(
                     controller: _totalController,
-                    decoration: const InputDecoration(labelText: "合計金額"),
-                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: "合計金額",
+                      // --- 追加: 計算ボタン ---
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.calculate),
+                        onPressed: () =>
+                            _calculateField(_totalController, isTotal: true),
+                      ),
+                    ),
+                    keyboardType: TextInputType.text, // 数式を打てるようtextに変更
                     onChanged: (_) {
                       if (_mode == SplitMode.equal) _applyEqualSplit();
                       setState(() {});
@@ -338,13 +384,23 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
                                 labelText: m.name,
                                 prefixText: "¥ ",
                                 filled: _mode == SplitMode.equal,
-                                // 除外されている場合は見た目を変える
                                 fillColor: isExcluded
                                     ? Colors.grey.withOpacity(0.1)
                                     : null,
+                                // --- 追加: 手動モードの時だけ計算ボタンを表示 ---
+                                suffixIcon: _mode == SplitMode.manual
+                                    ? IconButton(
+                                        icon: const Icon(
+                                          Icons.calculate,
+                                          size: 20,
+                                        ),
+                                        onPressed: () => _calculateField(
+                                          _controllers[m.id]!,
+                                        ),
+                                      )
+                                    : null,
                               ),
-                              keyboardType: TextInputType.number,
-                              textInputAction: TextInputAction.next,
+                              keyboardType: TextInputType.visiblePassword,
                               // 1. 手動モードなら常に true (編集可能)
                               // 2. 均等モードなら常に false (編集不可)
                               enabled: _mode == SplitMode.manual,
