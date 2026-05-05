@@ -31,6 +31,7 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
   final _totalController = TextEditingController(text: "0");
   final _payDateController = TextEditingController();
   final Map<String, TextEditingController> _controllers = {};
+  final Set<String> _excludedMemberIds = {};
 
   /// 選択された支払者のID
   String? _payerId;
@@ -60,6 +61,14 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
     // 2. メンバーごとの負担額入力フィールドとFocusNodeの初期化
     for (final m in widget.members) {
       final share = edit?.shares[m.id];
+
+      // 均等割りモードで保存されたデータにおいて、金額が0（またはnull）の場合は除外リストに入れる
+      if (edit != null && _mode == SplitMode.equal) {
+        if (share == null || share == 0) {
+          _excludedMemberIds.add(m.id);
+        }
+      }
+
       final isParticipant = participants.contains(m.id);
 
       // 初期金額の計算（既存データがあれば優先、なければ均等割の暫定値をセット）
@@ -131,13 +140,30 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
   /// 均等割の計算と適用
   /// 割り切れない端数はリストの先頭メンバーから順に1円ずつ配分して調整
   void _applyEqualSplit() {
-    if (widget.members.isEmpty) return;
-    final per = (total / widget.members.length).floor();
-    final remainder = total - per * widget.members.length;
+    // 参加しているメンバー（除外リストに入っていない人）だけを抽出
+    final participants = widget.members
+        .where((m) => !_excludedMemberIds.contains(m.id))
+        .toList();
+
+    if (participants.isEmpty) return;
+
+    // 参加人数で割る
+    final per = (total / participants.length).floor();
+    final remainder = total - per * participants.length;
+
     setState(() {
       for (int i = 0; i < widget.members.length; i++) {
         final m = widget.members[i];
-        _controllers[m.id]!.text = (i < remainder ? per + 1 : per).toString();
+
+        if (_excludedMemberIds.contains(m.id)) {
+          // 除外されている人は一律0円
+          _controllers[m.id]!.text = "0";
+        } else {
+          // 参加者の中でのインデックスを取得して端数調整
+          final pIndex = participants.indexOf(m);
+          _controllers[m.id]!.text = (pIndex < remainder ? per + 1 : per)
+              .toString();
+        }
       }
     });
   }
@@ -270,24 +296,59 @@ class _ExpenseInputDialogState extends State<ExpenseInputDialog> {
                   ),
                   // 各メンバーの負担額入力
                   ...widget.members.map((m) {
+                    final isExcluded = _excludedMemberIds.contains(m.id);
+
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 8.0),
-                      child: TextField(
-                        controller: _controllers[m.id],
-                        focusNode: _focusNodes[m.id], // フォーカス管理を適用
-                        decoration: InputDecoration(
-                          labelText: m.name,
-                          prefixText: "¥ ",
-                          filled: _mode == SplitMode.equal,
-                        ),
-                        keyboardType: TextInputType.number,
-                        textInputAction: TextInputAction.next,
-                        enabled: _mode == SplitMode.manual,
-                        onChanged: (_) {
-                          if (_mode == SplitMode.manual) {
-                            _updateTotalFromManualInput();
-                          }
-                        },
+                      child: Row(
+                        children: [
+                          // 均等割りモードのときだけチェックボックスを表示
+                          if (_mode == SplitMode.equal)
+                            Checkbox(
+                              value: !isExcluded,
+                              onChanged: (bool? checked) {
+                                setState(() {
+                                  if (checked == true) {
+                                    _excludedMemberIds.remove(m.id);
+                                  } else {
+                                    _excludedMemberIds.add(m.id);
+                                  }
+                                });
+                                _applyEqualSplit();
+                              },
+                            ),
+                          Expanded(
+                            child: TextField(
+                              controller: _controllers[m.id],
+                              focusNode: _focusNodes[m.id],
+                              decoration: InputDecoration(
+                                labelText: m.name,
+                                prefixText: "¥ ",
+                                filled: _mode == SplitMode.equal,
+                                // 除外されている場合は見た目を変える
+                                fillColor: isExcluded
+                                    ? Colors.grey.withOpacity(0.1)
+                                    : null,
+                              ),
+                              keyboardType: TextInputType.number,
+                              textInputAction: TextInputAction.next,
+                              // 1. 手動モードなら常に true (編集可能)
+                              // 2. 均等モードなら常に false (編集不可)
+                              enabled: _mode == SplitMode.manual,
+                              style: TextStyle(
+                                // 均等割りで除外されている時だけ文字をグレーにする
+                                color: (_mode == SplitMode.equal && isExcluded)
+                                    ? Colors.grey
+                                    : null,
+                              ),
+                              onChanged: (_) {
+                                if (_mode == SplitMode.manual) {
+                                  _updateTotalFromManualInput();
+                                }
+                              },
+                            ),
+                          ),
+                        ],
                       ),
                     );
                   }),
