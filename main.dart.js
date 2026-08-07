@@ -98120,7 +98120,7 @@ m=A.aE(o.h(k,"role"))
 l=A.a6N(t.y4.a(o.h(k,"createdAt")).gBU())
 k=A.fh(o.h(k,"active"))
 s=7
-return A.l(A.aRZ(null,new A.auz(q,"http://localhost:8080?eventId="+b+"&token="+n,new A.Ce(n,m,l,k!==!1),b),a,!1,B.Rr,t.z),$async$oq)
+return A.l(A.aRZ(null,new A.auz(q,"https://kakunekono.github.io/wari-can?eventId="+b+"&token="+n,new A.Ce(n,m,l,k!==!1),b),a,!1,B.Rr,t.z),$async$oq)
 case 7:case 4:return A.r(null,r)}})
 return A.t($async$oq,r)},
 L(a){var s,r=$.a_,q=(r==null?$.a_=$.aX():r).aT("[DEFAULT]")
