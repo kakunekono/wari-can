@@ -100973,7 +100973,7 @@ A.a2x.prototype={
 J(a){var s,r,q,p,o,n,m,l,k=this.c
 if(k.length===0||B.b.n(k,"\u7cbe\u7b97\u306e\u5fc5\u8981\u306f\u3042\u308a\u307e\u305b\u3093\u3002"))return B.R3
 s=A.b([],t.zC)
-r=A.iO("^(.+?)\\s*\u2192\\s*(.+?):\\s*(.+)",!1)
+r=A.iO("^(.+?)\\s*(?:\u2192|->)\\s*(.+?)(?::|\uff1a|\\s+)\\s*(.+)",!1)
 for(q=k.length,p=0;p<k.length;k.length===q||(0,A.J)(k),++p){o=r.pj(k[p])
 if(o!=null){n=o.b
 m=n[1]
